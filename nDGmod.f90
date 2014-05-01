@@ -187,6 +187,25 @@ MODULE nDGmod
 
         END SUBROUTINE gllquad_weights
 
+	! #######################################################################################################
+    ! Computing weights associated with N+1 nodes for quadratures on [-1,1]
+	! For Modal DG, we require M=N+1 weights, where N is the highest order of Legendre polynomial being used
+    ! #######################################################################################################
+        SUBROUTINE gaussquad_weights(M,nodes,wghts)
+            IMPLICIT NONE
+            INTEGER, INTENT(IN) :: M
+            REAL(KIND=DOUBLE), DIMENSION(0:M-1), INTENT(IN) :: nodes
+            REAL(KIND=DOUBLE), DIMENSION(0:M-1), INTENT(OUT) :: wghts
+            INTEGER :: k
+
+            DO k = 0,M-1
+                wghts(k) = 2D0*(1-nodes(k)**2)/((M*legendre(nodes(k),M-1))**2)
+				!wghts(k) = 2D0/( (1-nodes(k)**2)*(dlegendre(nodes(k),M))**2 )
+            END DO
+
+        END SUBROUTINE gaussquad_weights
+
+
     ! ###########################################################
     ! baryWeights computes the set of barycentric weights for the Lagrange interpolating polynomial,
     ! used to evaluate the basis functions

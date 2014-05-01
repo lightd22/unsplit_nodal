@@ -9,7 +9,8 @@
 ! By: Devin Light ; April 2014
 ! ==========================================
 
-SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,dyel,nex,ney,norder,dgorder)
+SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gaussNodes,lagrangeDeriv,time,dt,dxel,dyel,nex,ney,norder,dgorder,&
+                        dozshulimit,transient)
     IMPLICIT NONE
 
 	! External functions
@@ -19,18 +20,19 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,d
     ! Inputs
     INTEGER, INTENT(IN) :: nex,ney,norder,dgorder
     REAL(KIND=8), INTENT(IN) :: dxel,dyel,dt,time
-    REAL(KIND=8), DIMENSION(0:dgorder), INTENT(IN) :: gllNodes,gllWeights
+    REAL(KIND=8), DIMENSION(0:dgorder), INTENT(IN) :: gllNodes,gllWeights,gaussNodes
     REAL(KIND=8), DIMENSION(0:norder,0:dgorder), INTENT(IN) :: lagrangeDeriv
 	REAL(KIND=8), DIMENSION(1:nex,1:ney,0:dgorder,0:dgorder), INTENT(IN) :: u0,v0
+    LOGICAL, INTENT(IN) :: dozshulimit,transient
 
     ! Outputs
     REAL(KIND=8), DIMENSION(1:nex,1:ney,0:norder,0:norder), INTENT(INOUT) :: A
 
     ! Local Variables
+    INTEGER :: i,j,l,m,stage
     REAL(KIND=8) :: coef1
     REAL(KIND=8), DIMENSION(1:nex,1:ney,0:norder,0:norder) :: A1,A2
-    REAL(KIND=8), DIMENSION(1:nex,1:ney,0:dgorder,0:dgorder) :: u, v
-	REAL(KIND=8), DIMENSION(1:nex,1:ney,0:dgorder,0:dgorder) :: quadVals
+	REAL(KIND=8), DIMENSION(1:nex,1:ney,0:dgorder,0:dgorder) :: quadVals,u,v
 	REAL(KIND=8), DIMENSION(0:nex+1,1:ney,0:1,0:dgorder) :: edgeValsEW
 	REAL(KIND=8), DIMENSION(1:nex,0:ney+1,0:1,0:dgorder) :: edgeValsNS
 	REAL(KIND=8), DIMENSION(0:nex,1:ney,0:dgorder) :: Fhat
@@ -63,7 +65,7 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,d
         ENDIF
 
 	    ! Update fluxes
-	    CALL evalExpansion(quadVals,edgeValsNS,edgeValsEW,A1,Leg,dgorder,norder,nex,ney,dozshulimit)
+	    CALL evalExpansion(quadVals,edgeValsNS,edgeValsEW,A1,dgorder,norder,nex,ney,dozshulimit)
 	    CALL numFlux(Fhat,Ghat,u,v,edgeValsNS,edgeValsEW,dgorder,norder,nex,ney)
 
         ! Forward step of SSPRK3
@@ -73,7 +75,8 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,d
         		DO l=0,norder
             		DO m=0,norder
 	            		A2(i,j,l,m) = A1(i,j,l,m)+ &
-	        				coef1*dadt(i,j,l,m,quadVals(i,j,:,:),Fhat,Ghat,u(i,j,:,:),v(i,j,:,:),gllWeights,lagrangeDeriv,dxel,dyel,dgorder,norder,nex,ney)
+	        				coef1*dadt(i,j,l,m,quadVals(i,j,:,:),Fhat,Ghat,u(i,j,:,:),v(i,j,:,:),gllWeights,&
+                                   lagrangeDeriv,dxel,dyel,dgorder,norder,nex,ney)
 	            	ENDDO !m
 	        	ENDDO!l
             	ENDDO !j
@@ -120,7 +123,7 @@ REAL(KIND=8) FUNCTION dadt(i,j,l,m,quadVals,Fhat,Ghat,uIn,vIn,gllWeight,lagrange
 
 	! Step 2: Compute NS Flux Contribution
     C = 0D0
-    IF( m .eq. N) THEN
+    IF( m .eq. dgorder) THEN
         C = C + Ghat(i,j,l)
     ELSEIF( m .eq. 0) THEN
         C = C - Ghat(i,j-1,l)
@@ -129,7 +132,7 @@ REAL(KIND=8) FUNCTION dadt(i,j,l,m,quadVals,Fhat,Ghat,uIn,vIn,gllWeight,lagrange
 
 	! Step 3: Compute EW Flux Contribution
     D = 0D0
-    IF( l .eq. N) THEN
+    IF( l .eq. dgorder) THEN
         D = D + Fhat(i,j,m)
     ELSEIF( l .eq. 0) THEN
         D = D - Fhat(i-1,j,m)
@@ -183,12 +186,11 @@ SUBROUTINE numFlux(Fhat,Ghat,u,v,edgeValsNS,edgeValsEW,dgorder,norder,nex,ney)
 
 END SUBROUTINE numFlux
 
-SUBROUTINE evalExpansion(quadVals,edgeValsNS,edgeValsEW,Ain,Leg,dgorder,norder,nex,ney,dozshulimit)
+SUBROUTINE evalExpansion(quadVals,edgeValsNS,edgeValsEW,Ain,dgorder,norder,nex,ney,dozshulimit)
 ! Evaluate current expansion at interior quadrature locations and quadrature locations along EW and NS edges of each element
 	IMPLICIT NONE
 	! Inputs
 	INTEGER, INTENT(IN) :: dgorder,norder,nex,ney
-	REAL(KIND=8), DIMENSION(0:dgorder,0:norder), INTENT(IN) :: Leg
 	REAL(KIND=8), DIMENSION(1:nex,1:ney,0:norder,0:norder), INTENT(INOUT) :: Ain
     LOGICAL, INTENT(IN) :: dozshulimit
 
