@@ -14,7 +14,9 @@ PROGRAM EXECUTE
     
     IMPLICIT NONE
 	INTEGER :: ntest,start_res
-	LOGICAL :: transient
+	LOGICAL :: transient,DEBUG
+
+    DEBUG = .FALSE.
 
 	write(*,*) '======'
 	write(*,*) 'TEST 0: Uniform field, deformation flow'
@@ -28,7 +30,7 @@ PROGRAM EXECUTE
 	write(*,*) '======'
 	transient = .FALSE.
 	start_res = 8 ! Number of elements in each direction
-	CALL test2d_nodal(1,start_res,start_res,2,2,20,0.05D0) !1D0/(2D0*4D0-1D0) !0.3D0/sqrt(2d0)
+	CALL test2d_nodal(1,start_res,start_res,2,3,20,0.01D0) !1D0/(2D0*4D0-1D0) !0.3D0/sqrt(2d0)
 
 	write(*,*) '======'
 	write(*,*) 'TEST 2: Smooth cosbell deformation'
@@ -172,6 +174,14 @@ CONTAINS
                 CALL init2d(ntest,nex,ney,dgorder,norder,A,u0,v0,x_elcent,y_elcent,gllNodes,gllWeights,cdf_out,tfinal)
                 A0 = A
 				cdf_out = outdir // cdf_out
+
+                IF(DEBUG) THEN
+                    write(*,*) 'Debugging..'
+                    u0 = 1D0
+                    v0 = 1D0
+                    A = 1D0
+                    A0 = A
+                ENDIF
 
 				! Store element averages for conservation estimation
                 DO i=1,nex

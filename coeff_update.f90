@@ -29,7 +29,7 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gaussNodes,lagrangeDeriv,tim
     REAL(KIND=8), DIMENSION(1:nex,1:ney,0:norder,0:norder), INTENT(INOUT) :: A
 
     ! Local Variables
-    INTEGER :: i,j,l,m,stage
+    INTEGER :: i,j,l,m,stage,k
     REAL(KIND=8) :: coef1
     REAL(KIND=8), DIMENSION(1:nex,1:ney,0:norder,0:norder) :: A1,A2
 	REAL(KIND=8), DIMENSION(1:nex,1:ney,0:dgorder,0:dgorder) :: quadVals,u,v
@@ -37,6 +37,7 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gaussNodes,lagrangeDeriv,tim
 	REAL(KIND=8), DIMENSION(1:nex,0:ney+1,0:1,0:dgorder) :: edgeValsNS
 	REAL(KIND=8), DIMENSION(0:nex,1:ney,0:dgorder) :: Fhat
 	REAL(KIND=8), DIMENSION(1:nex,0:ney,0:dgorder) :: Ghat
+    REAL(KIND=8) :: error
 
 
 	! ######################
@@ -67,11 +68,6 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gaussNodes,lagrangeDeriv,tim
 	    ! Update fluxes
 	    CALL evalExpansion(quadVals,edgeValsNS,edgeValsEW,A1,dgorder,norder,nex,ney,dozshulimit)
 	    CALL numFlux(Fhat,Ghat,u,v,edgeValsNS,edgeValsEW,dgorder,norder,nex,ney)
-
-        IF( isnan(max(maxval(abs(Fhat)),maxval(abs(Ghat)) )) )  then
-           write(*,*) 'fuck'
-            stop
-        endif
 
         ! Forward step of SSPRK3
         	DO i=1,nex
@@ -112,7 +108,7 @@ REAL(KIND=8) FUNCTION dadt(i,j,l,m,quadVals,Fhat,Ghat,uIn,vIn,gllWeight,lagrange
 	INTEGER, INTENT(IN) :: i,j,l,m,dgorder,norder,nex,ney
 	REAL(KIND=8), INTENT(IN) :: dxel,dyel
  	REAL(KIND=8), DIMENSION(0:dgorder,0:dgorder), INTENT(IN) :: uIn,vIn,quadVals
-	REAL(KIND=8), DIMENSION(0:dgorder,0:dgorder), INTENT(IN) :: lagrangeDeriv
+	REAL(KIND=8), DIMENSION(0:norder,0:dgorder), INTENT(IN) :: lagrangeDeriv
 	REAL(KIND=8), DIMENSION(0:dgorder), INTENT(IN) :: gllWeight
 	REAL(KIND=8), DIMENSION(0:nex,1:ney,0:dgorder), INTENT(IN) :: Fhat
 	REAL(KIND=8), DIMENSION(1:nex,0:ney,0:dgorder), INTENT(IN) :: Ghat
@@ -140,7 +136,7 @@ REAL(KIND=8) FUNCTION dadt(i,j,l,m,quadVals,Fhat,Ghat,uIn,vIn,gllWeight,lagrange
     ELSEIF( l .eq. 0) THEN
         D = D - Fhat(i-1,j,m)
     ENDIF
-    D = (-1D0*dyel/gllWeight(l))
+    D = (-1D0*dyel/gllWeight(l))*D
 
 	dadt = (2D0)*(A+B+C+D)
 
