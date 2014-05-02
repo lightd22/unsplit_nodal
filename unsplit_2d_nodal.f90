@@ -58,7 +58,7 @@ CONTAINS
 		! Local variables
 		INTEGER, DIMENSION(10) :: tmp_method
 	    REAL(KIND=8), DIMENSION(nlevel) :: e1, e2, ei
-		REAL(KIND=8) :: cnvg1, cnvg2, cnvgi
+		REAL(KIND=8) :: cnvg1, cnvg2, cnvgi,cons
 		INTEGER :: nmethod, nmethod_final,imethod,ierr,nstep,nout
 		INTEGER :: dgorder, norder,p
 
@@ -67,8 +67,8 @@ CONTAINS
 		CHARACTER(len=40) :: cdf_out
 
 		INTEGER :: nex,ney,nxiplot,netaplot
-		REAL(KIND=8) :: dxel,dyel,tfinal, tmp_umax, tmp_vmax, dxm, dym,dt, time
-		REAL(KIND=8), ALLOCATABLE, DIMENSION(:,:) :: Leg, lagrangeDeriv,C0,C
+		REAL(KIND=8) :: dxel,dyel,tfinal, tmp_umax, tmp_vmax, dxm, dym,dt, time,calculatedMu
+		REAL(KIND=8), ALLOCATABLE, DIMENSION(:,:) :: Leg,lagrangeDeriv,C0,C,tmpArray,tmpErr
 		REAL(KIND=8), ALLOCATABLE, DIMENSION(:) :: gllNodes,gllWeights,gaussNodes,gaussWeights,x_elcent,y_elcent,&
                                                    xplot,yplot,xiplot,etaplot
 		REAL(KIND=8), ALLOCATABLE, DIMENSION(:,:,:,:) :: A,A0,& ! Coefficent array
@@ -84,7 +84,7 @@ CONTAINS
 
 		if(nlevel.lt.1) STOP 'nlev should be at least 1 in test2d_modal'
 
-		nmethod_final = 2
+		nmethod_final = 1
 		tmp_method = 0
 		tmp_method(1) = 1
         tmp_method(2) = 2
@@ -96,14 +96,14 @@ CONTAINS
 				CASE(1)
 				  WRITE(*,*) '2D Nodal, Unsplit, No limiting'
 				  dozshulimit = .FALSE.
-				  outdir = 'mdgunlim/'
+				  outdir = 'ndgunlim/'
 				  norder = 4
 				  dgorder = norder !2*(norder+1)
 				  WRITE(*,*) 'N=',norder,'Uses a total of',(norder+1)**2,'Legendre basis polynomials'
 				CASE(2)
 				  WRITE(*,*) '2D Nodal, Unsplit, Zhang and Shu Limiting'
 				  dozshulimit = .TRUE.
-				  outdir = 'mdgzhshu/'
+				  outdir = 'ndgzhshu/'
 				  norder = 4
 				  dgorder = norder
 				  WRITE(*,*) 'N=',norder,'Uses a total of',(norder+1)**2,'Legendre basis polynomials'
@@ -111,10 +111,10 @@ CONTAINS
 
 			! Initialize quadrature weights and nodes (only done once per call)
 			ALLOCATE(gllnodes(0:dgorder),gllweights(0:dgorder),gaussNodes(0:dgorder),gaussWeights(0:dgorder),&
-                    lagrangeDeriv(0:norder,0:dgorder),STAT=ierr)
+                    lagrangeDeriv(0:norder,0:dgorder),tmpArray(0:norder,0:norder),STAT=ierr)
 
-            CALL gllquad_nodes(dgorder+1,gllNodes)
-            CALL gllquad_weights(dgorder+1,gllNodes,gllWeights)
+            CALL gllquad_nodes(dgorder,gllNodes)
+            CALL gllquad_weights(dgorder,gllNodes,gllWeights)
             CALL gaussquad_nodes(dgorder+1,gaussNodes)
             CALL gaussquad_weights(dgorder+1,gaussNodes,gaussWeights)
 
@@ -169,13 +169,19 @@ CONTAINS
 
 				
 				! Initialize A, u, and v
-
                 CALL init2d(ntest,nex,ney,dgorder,norder,A,u0,v0,x_elcent,y_elcent,gllNodes,gllWeights,cdf_out,tfinal)
-                write(*,*) MAXVAL(v0),MINVAL(v0)
                 A0 = A
 				cdf_out = outdir // cdf_out
 
 				! Store element averages for conservation estimation
+                DO i=1,nex
+                    DO j=1,ney
+                        DO l=0,norder
+                            tmpArray(l,:) = gllWeights(l)*gllWeights(:)*A0(i,j,l,:)
+                        ENDDO!l
+                        C0(i,j) = 0.25D0*dxel*dyel*SUM(tmpArray)
+                    ENDDO !j
+                ENDDO !i
 
 				! Set up timestep
 				dxm = dxel
@@ -193,49 +199,109 @@ CONTAINS
 				ENDIF
 
 				dt = tfinal/DBLE(nstep)
+                calculatedMu = (sqrt(tmp_umax**2 + tmp_vmax**2)*dt)/dxm
 
 				IF(p .eq. 1) THEN ! Set up netCDF file
-!					CALL output2d(q0,xplot,yplot,nxplot,nyplot,tfinal,cdf_out,nout,-1)
+					CALL output2d(A0,xplot,yplot,gllWeights,gllNodes,nex,ney,norder,dgorder,nxiplot,netaplot,tfinal,calculatedMu,cdf_out,nout,-1)
 				ENDIF
 
-!				CALL output2d(q0,xplot,yplot,nxplot,nyplot,0D0,cdf_out,p,0) ! Set up variables for this value of p ; Write x, y, and initial conditions
+                ! Set up variables for this value of p ; Write x, y, and initial conditions
+				CALL output2d(A0,xplot,yplot,gllWeights,gllNodes,nex,ney,norder,dgorder,nxiplot,netaplot,0D0,calculatedMu,cdf_out,p,0)
 
 				! Time integration
 				tmp_qmax = MAXVAL(A0)
 				tmp_qmin = MINVAL(A0)
 
 				time = 0D0
-!				DO n=1,nstep
+				DO n=1,nstep
 
-!					CALL coeff_update(q,A,u_tmp,v_tmp,uedge_tmp,vedge_tmp,qnodes,qweights,Leg,dLL,LL,L_xi_plot,L_eta_plot,dxel,dyel,& 
-!									  dt,dgorder,norder,nxplot,nyplot,nex,ney,nxiplot,netaplot,transient,time,dozshulimit)
-
-					! Store element averages for conservation estimation (for modal DG these are just the 0th order coeffs)
+                    CALL coeff_update(A,u0,v0,gllNodes,gllWeights,gaussNodes,lagrangeDeriv,time,dt,dxel,dyel,nex,ney,&
+                                      norder,dgorder,dozshulimit,transient)
 
 					time = time + dt
 	
 					IF((MOD(n,nstep/nout).eq.0).OR.(n.eq.nstep)) THEN
 						! Write output
-!						CALL output2d(q,xplot,yplot,nxplot,nyplot,time,cdf_out,p,2)
+						CALL output2d(A,xplot,yplot,gllWeights,gllNodes,nex,ney,norder,dgorder,nxiplot,netaplot,time,calculatedMu,cdf_out,p,2)
 					ENDIF
 					
 					tmp_qmax = MAX(tmp_qmax,MAXVAL(A))
 					tmp_qmin = MIN(tmp_qmin,MINVAL(A))
 
-!				ENDDO !nstep
+				ENDDO !n
+                tf = etime(tend) - t0
+
+                ! Store element averages for conservation estimation 
+                DO i=1,nex
+                    DO j=1,ney
+                        DO l=0,norder
+                            tmpArray(l,:) = gllWeights(l)*gllWeights(:)*A(i,j,l,:)
+                        ENDDO!l
+                        C(i,j) = 0.25D0*dxel*dyel*SUM(tmpArray)
+                    ENDDO !j
+                ENDDO !i
+                cons = SUM(C-C0)/DBLE(nex*ney)
+
+                ! Compute errors
+                ALLOCATE(tmpErr(1:nex,1:ney),STAT=ierr)
+                DO i=1,nex
+                    DO j=1,ney
+                        DO l=0,norder
+                            tmpArray(l,:) = gllWeights(l)*gllWeights(:)*ABS(A(i,j,l,:)-A0(i,j,l,:))
+                        ENDDO!l
+                        tmpErr(i,j) = SUM(tmpArray)
+                    ENDDO !j
+                ENDDO !i                
+                e1(p) = 0.25D0*dxel*dyel*SUM(tmpErr)
+
+                DO i=1,nex
+                    DO j=1,ney
+                        DO l=0,norder
+                            tmpArray(l,:) = gllWeights(l)*gllWeights(:)*(ABS(A(i,j,l,:)-A0(i,j,l,:)))**2
+                        ENDDO!l
+                        tmpErr(i,j) = SUM(tmpArray)
+                    ENDDO !j
+                ENDDO !i                
+                e2(p) = 0.25D0*dxel*dyel*SUM(tmpErr)
+
+                ei(p) = MAXVAL(ABS(A(:,:,:,:) - A0(:,:,:,:)))
+
+        			if (p.eq.1) then
+		        	write(UNIT=6,FMT='(A107)') &
+'   nex    ney      E1        E2       Einf      convergence rate  overshoot  undershoot   cons cputime time step'
+		        	cnvg1 = 0.d0
+		        	cnvg2 = 0.d0
+		        	cnvgi = 0.d0
+		            else
+                		cnvg1 = -log(e1(p)/e1(p-1))/log(dble(nscale))
+                		cnvg2 = -log(e2(p)/e2(p-1))/log(dble(nscale))
+                		cnvgi = -log(ei(p)/ei(p-1))/log(dble(nscale))
+		            end if
+               write(*,990) nex,ney, e1(p), e2(p), ei(p), &
+                    cnvg1, cnvg2, cnvgi, &
+                    tmp_qmax-MAXVAL(A0), &
+                    MINVAL(A0)-tmp_qmin, &
+                    cons, tf, nstep
 
 				IF(p .eq. nlevel) THEN
-!					CALL output2d(q,xplot,yplot,nxplot,nyplot,tfinal,cdf_out,p,1) ! Close netCDF files
+                    CALL output2d(A,xplot,yplot,gllWeights,gllNodes,nex,ney,norder,dgorder,nxiplot,netaplot,time,&
+                                  calculatedMu,cdf_out,p,1) ! Close netCDF files
 				ENDIF
-				DEALLOCATE(A,A0,x_elcent,y_elcent,xplot,yplot,u0,v0, STAT=ierr)
+				DEALLOCATE(A,A0,x_elcent,y_elcent,xplot,yplot,u0,v0,tmpErr,STAT=ierr)
 			ENDDO
 		ENDDO
-		DEALLOCATE(gllnodes,gllweights,gaussnodes,gaussweights,xiplot,etaplot, STAT=ierr)
+		DEALLOCATE(gllnodes,gllweights,gaussnodes,gaussweights,xiplot,etaplot,tmpArray, tmpErr, STAT=ierr)
 
 990    format(2i6,3e12.4,3f5.2,3e12.4,f8.2,i8)
 
 	END SUBROUTINE test2d_nodal
+
+
     SUBROUTINE init2d(ntest,nex,ney,dgorder,norder,A,u0,v0,x_elcent,y_elcent,gllNodes,gllWeights,cdf_out,tfinal)
+    ! ----
+    !  Computes initial conditons for coefficient matrix (by simple evaluation of IC function) and initial velocities (via a streamfunction)
+    !  Also sets the final time and output file name
+    ! ----
         IMPLICIT NONE
         !Inputs
         INTEGER, INTENT(IN) :: ntest,nex,ney,dgorder,norder
@@ -309,5 +375,124 @@ CONTAINS
         END SELECT !ntest
 
     END SUBROUTINE init2d
+
+	SUBROUTINE output2d(A,x,y,gllWeights,gllNodes,nex,ney,norder,dgorder,nxiplot,netaplot,tval_in,mu,cdf_out,ilvl,stat)
+		IMPLICIT NONE
+
+		! Inputs
+		INTEGER, INTENT(IN) :: norder,dgorder,nex,ney,nxiplot,netaplot,stat,ilvl
+		CHARACTER(len=40), INTENT(IN) :: cdf_out
+		REAL(KIND=8), INTENT(IN) :: tval_in,mu
+		REAL(KIND=8), DIMENSION(1:nex*nxiplot), INTENT(IN) :: x
+		REAL(KIND=8), DIMENSION(1:ney*netaplot), INTENT(IN) :: y
+		REAL(KIND=8), DIMENSION(1:nex,1:ney,0:norder,0:norder), INTENT(IN) :: A
+        REAL(KIND=8), DIMENSION(0:dgorder), INTENT(IN) :: gllWeights,gllNodes
+		
+		! Outputs
+
+		! Local variables
+		INTEGER :: cdfid ! ID for netCDF file
+		INTEGER, PARAMETER :: NDIMS = 3
+		INTEGER :: ierr
+	    INTEGER :: idq,idt,idx,idy,dimids(NDIMS),idweight,idnode,idmu
+	    INTEGER :: x_dimid, y_dimid, t_dimid,node_dimid
+		INTEGER, DIMENSION(1:NDIMS) :: start, count
+		CHARACTER(len=8) :: nxname,xname,nyname,yname,qname,muname
+
+		REAL(KIND=8), ALLOCATABLE, DIMENSION(:) :: tmp
+		REAL(KIND=8), DIMENSION(1:nex*nxiplot) :: temp	
+		INTEGER :: i,j,l,m,nxout,nyout,ylvl,internalLvl
+
+	    SAVE cdfid, idq, t_dimid, start, count
+
+        nxout = nex*nxiplot
+        nyout = ney*netaplot
+
+		IF(stat .eq. -1) THEN
+			! Create netCDF file and time variables
+			ierr = NF90_CREATE(TRIM(cdf_out),NF90_CLOBBER,cdfid)
+
+			ierr = NF90_REDEF(cdfid)
+			ierr = NF90_DEF_DIM(cdfid, "nt", ilvl+1, t_dimid)
+            ierr = NF90_DEF_DIM(cdfid, "nnodes", dgorder+1, node_dimid)
+
+			ierr = NF90_DEF_VAR(cdfid, "qweights",NF90_FLOAT, node_dimid, idweight)
+			ierr = NF90_DEF_VAR(cdfid, "qnodes",NF90_FLOAT, node_dimid, idnode)
+			ierr = NF90_DEF_VAR(cdfid, "time", NF90_FLOAT, t_dimid,idt)
+
+			ierr = NF90_ENDDEF(cdfid)
+
+			! Calculate time at output levels (note ilvl=noutput)
+			ALLOCATE(tmp(1:ilvl+1), STAT=ierr)
+			DO i=0,ilvl
+				tmp(i+1) = DBLE(i)*tval_in/DBLE(ilvl)
+			ENDDO
+
+			! Write t values
+			ierr = NF90_PUT_VAR(cdfid,idt,tmp)
+			ierr = NF90_PUT_VAR(cdfid,idweight,gllWeights)
+            ierr = NF90_PUT_VAR(cdfid,idnode,gllNodes)
+
+			DEALLOCATE(tmp, STAT=ierr)
+
+			RETURN
+
+		ELSEIF(stat .eq. 0) THEN
+			! Create dimensions and variables for this level of runs (ilvl = p)
+			start = 1
+			count = 1
+
+			! Define names of variables
+			WRITE(nxname,'(a2,i1)') 'nx',ilvl
+			WRITE(nyname,'(a2,i1)') 'ny',ilvl
+			WRITE(xname, '(a1,i1)') 'x',ilvl
+			WRITE(yname, '(a1,i1)') 'y',ilvl
+			WRITE(qname, '(a1,i1)') 'Q',ilvl
+            WRITE(muname, '(a2,i1)') 'mu',ilvl
+
+			ierr = NF90_REDEF(cdfid)
+
+			ierr = NF90_DEF_DIM(cdfid, TRIM(nxname), nxout, x_dimid)
+			ierr = NF90_DEF_DIM(cdfid, TRIM(nyname), nyout, y_dimid)
+
+			dimids(1) = x_dimid
+			dimids(2) = y_dimid
+			dimids(3) = t_dimid
+
+			ierr = NF90_DEF_VAR(cdfid, TRIM(qname),NF90_FLOAT,dimids,idq)
+			ierr = NF90_DEF_VAR(cdfid, TRIM(xname),NF90_FLOAT,x_dimid,idx)
+			ierr = NF90_DEF_VAR(cdfid, TRIM(yname),NF90_FLOAT,y_dimid,idy)
+            ierr = NF90_DEF_VAR(cdfid, TRIM(muname),NF90_FLOAT,idmu)
+
+			ierr = NF90_enddef(cdfid)
+
+			! Write x and y values
+			ierr = NF90_PUT_VAR(cdfid, idx, x)
+			ierr = NF90_PUT_VAR(cdfid, idy, y)
+            ierr = NF90_PUT_VAR(cdfid,idmu,mu)
+
+			start(3) = 1
+
+		ELSEIF(stat .eq. 1) THEN
+			ierr = NF90_CLOSE(cdfid)
+			RETURN
+		ENDIF
+
+		! Write out concentration field
+		count(1) = nxout
+        DO ylvl=1,nyout
+            start(2) = ylvl
+            j = 1 + (ylvl-1)/netaplot
+            internalLvl = mod(ylvl-1,netaplot)
+            DO i=1,nex
+                temp(1+(i-1)*nxiplot:i*nxiplot) = A(i,j,:,internalLvl)
+            ENDDO!i
+            ierr = NF90_PUT_VAR(cdfid,idq,temp,start,count)
+        ENDDO!j
+		
+		! Increment t level 
+		start(3) = start(3) + 1 
+
+	END SUBROUTINE output2d
 
 END PROGRAM EXECUTE

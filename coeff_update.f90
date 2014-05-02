@@ -68,6 +68,11 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gaussNodes,lagrangeDeriv,tim
 	    CALL evalExpansion(quadVals,edgeValsNS,edgeValsEW,A1,dgorder,norder,nex,ney,dozshulimit)
 	    CALL numFlux(Fhat,Ghat,u,v,edgeValsNS,edgeValsEW,dgorder,norder,nex,ney)
 
+        IF( isnan(max(maxval(abs(Fhat)),maxval(abs(Ghat)) )) )  then
+           write(*,*) 'fuck'
+            stop
+        endif
+
         ! Forward step of SSPRK3
         	DO i=1,nex
             	DO j=1,ney
@@ -84,7 +89,6 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gaussNodes,lagrangeDeriv,tim
 
 		SELECT CASE(stage)
 		CASE(1)
-            A = A1 ! For Zhang and Shu limiter, Coefficents of original polynomial are changed.
 			A1 = A2
 		CASE(2)
 			A1 = 0.75D0*A + 0.25D0*A2
@@ -92,7 +96,6 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gaussNodes,lagrangeDeriv,tim
 			A1 = A/3d0 + 2D0*A2/3D0
 		END SELECT
     ENDDO !stage
-
     A = A1
 
 END SUBROUTINE coeff_update
@@ -163,8 +166,8 @@ SUBROUTINE numFlux(Fhat,Ghat,u,v,edgeValsNS,edgeValsEW,dgorder,norder,nex,ney)
 	DO i=1,nex
 		DO j=1,ney
 	
-			u_tmp = u(i,j,dgorder,:) !u(i,1+(j-1)*(dgorder+1):j*(dgorder+1))
-			v_tmp = v(i,j,:,dgorder) !v(1+(i-1)*(dgorder+1):i*(dgorder+1),j)
+			u_tmp = u(i,j,dgorder,:) 
+			v_tmp = v(i,j,:,dgorder) 
 
 			DO k=0,dgorder	
 				! Compute numerical flux through North edges (Ghat) (There are dgorder+1 nodes per element)
@@ -228,7 +231,8 @@ SUBROUTINE evalExpansion(quadVals,edgeValsNS,edgeValsEW,Ain,dgorder,norder,nex,n
 	ENDDO !i
 
 	IF(dozshulimit) THEN ! Use polynomial modifications from Zhang and Shu (2009)
-        write(*,*) 'Warning: Not Implemented yet!'
+        write(*,*) 'Warning: Not Implemented yet!' 
+        stop
 	ENDIF
 
 	! Extend edge values periodically
