@@ -10,7 +10,7 @@
 ! ==========================================
 
 SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gaussNodes,lagrangeDeriv,time,dt,dxel,dyel,nex,ney,norder,dgorder,&
-                        dozshulimit,transient)
+                        lagGaussVal,dozshulimit,transient)
     IMPLICIT NONE
 
 	! External functions
@@ -21,7 +21,7 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gaussNodes,lagrangeDeriv,tim
     INTEGER, INTENT(IN) :: nex,ney,norder,dgorder
     REAL(KIND=8), INTENT(IN) :: dxel,dyel,dt,time
     REAL(KIND=8), DIMENSION(0:dgorder), INTENT(IN) :: gllNodes,gllWeights,gaussNodes
-    REAL(KIND=8), DIMENSION(0:norder,0:dgorder), INTENT(IN) :: lagrangeDeriv
+    REAL(KIND=8), DIMENSION(0:norder,0:dgorder), INTENT(IN) :: lagrangeDeriv,lagGaussVal
 	REAL(KIND=8), DIMENSION(1:nex,1:ney,0:dgorder,0:dgorder), INTENT(IN) :: u0,v0
     LOGICAL, INTENT(IN) :: dozshulimit,transient
 
@@ -66,7 +66,7 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gaussNodes,lagrangeDeriv,tim
         ENDIF
 
 	    ! Update fluxes
-	    CALL evalExpansion(quadVals,edgeValsNS,edgeValsEW,A1,dgorder,norder,nex,ney,dozshulimit)
+	    CALL evalExpansion(quadVals,edgeValsNS,edgeValsEW,A1,dgorder,norder,nex,ney,dozshulimit,lagGaussVal,gllWeights)
 	    CALL numFlux(Fhat,Ghat,u,v,edgeValsNS,edgeValsEW,dgorder,norder,nex,ney)
 
         ! Forward step of SSPRK3
@@ -185,12 +185,14 @@ SUBROUTINE numFlux(Fhat,Ghat,u,v,edgeValsNS,edgeValsEW,dgorder,norder,nex,ney)
 
 END SUBROUTINE numFlux
 
-SUBROUTINE evalExpansion(quadVals,edgeValsNS,edgeValsEW,Ain,dgorder,norder,nex,ney,dozshulimit)
+SUBROUTINE evalExpansion(quadVals,edgeValsNS,edgeValsEW,Ain,dgorder,norder,nex,ney,dozshulimit,lagGaussVal,gllWeights)
 ! Evaluate current expansion at interior quadrature locations and quadrature locations along EW and NS edges of each element
 	IMPLICIT NONE
 	! Inputs
 	INTEGER, INTENT(IN) :: dgorder,norder,nex,ney
 	REAL(KIND=8), DIMENSION(1:nex,1:ney,0:norder,0:norder), INTENT(INOUT) :: Ain
+    REAL(KIND=8), DIMENSION(0:norder,0:dgorder), INTENT(IN) :: lagGaussVal
+    REAL(KIND=8), DIMENSION(0:dgorder), INTENT(IN) :: gllWeights
     LOGICAL, INTENT(IN) :: dozshulimit
 
 	! Outputs
@@ -199,9 +201,9 @@ SUBROUTINE evalExpansion(quadVals,edgeValsNS,edgeValsEW,Ain,dgorder,norder,nex,n
 	REAL(KIND=8), DIMENSION(1:nex,0:ney+1,0:1,0:dgorder), INTENT(OUT) :: edgeValsNS
 
 	! Local Variables
-	INTEGER :: i,j,s,t,l
+	INTEGER :: i,j,p,q,l
 	REAL(KIND=8), DIMENSION(0:norder) :: arr2
-	REAL(KIND=8), DIMENSION(0:norder,0:norder) :: tmp1, tmp2
+	REAL(KIND=8), DIMENSION(0:norder,0:norder) :: tmp1, tmp2, tmpArray
     REAL(KIND=8) :: theta,elemAvg,valMin
 
 	arr2 = (/ ((-1D0)**i , i=0,norder) /) ! P_l(-1) = (-1)**l
@@ -213,6 +215,43 @@ SUBROUTINE evalExpansion(quadVals,edgeValsNS,edgeValsEW,Ain,dgorder,norder,nex,n
 
 	DO i=1,nex
 		DO j=1,ney
+            	IF(dozshulimit) THEN ! Use polynomial modifications from Zhang and Shu (2009)
+                ! Compute element average via quadrature
+                DO l=0,dgorder
+                    tmpArray(l,:) = gllWeights(l)*gllWeights(:)*Ain(i,j,l,:)
+                ENDDO!l
+                elemAvg = 0.25D0*SUM(tmpArray)
+        
+                ! Next compute the minimum value of the reconstructing polynomial at 3 sets of points: x = tensor product
+                ! 1) Gauss Quadrature Nodes x Gauss Quadrature Nodes
+                ! 2) GLL Quad Nodes x Gauss Quad Nodes
+                ! 3) Gauss Quad Nodes x GLL Quad Nodes
+                valMin = HUGE(1D0)!Ain(i,j,0,0) ! Just initialize minimum to value in bottom left corner of element
+
+                ! First do Gauss x Gauss points
+                DO p=0,dgorder
+                    DO q=0,dgorder
+                        DO l=0,norder
+                            tmpArray(l,:) = Ain(i,j,l,:)*lagGaussVal(l,p)*lagGaussVal(:,q)
+                        ENDDO !l
+                        valMin = MIN(valMin,SUM(tmpArray))
+                    ENDDO !t
+                ENDDO !s
+
+                ! Next look at GLL x Gauss and Gauss x GLL at the same time
+                DO p=0,dgorder
+                    DO q=0,dgorder
+                        valMin = MIN(valMin,SUM(Ain(i,j,p,:)*lagGaussVal(:,q)),SUM(Ain(i,j,:,q)*lagGaussVal(:,p)))
+                    ENDDO !q
+                ENDDO !p
+
+                ! Compute theta
+                theta = MIN(abs(elemAvg)/(abs(valMin-elemAvg)),1D0)
+
+                ! Rescale reconstructing polynomial for (i,j)th element
+                Ain(i,j,:,:) = theta*(Ain(i,j,:,:) - elemAvg) + elemAvg
+            	ENDIF ! dozhangshulimit
+
             ! Evaluate expansion at interior quad points
             quadVals(i,j,:,:) = Ain(i,j,:,:)
 
@@ -226,10 +265,6 @@ SUBROUTINE evalExpansion(quadVals,edgeValsNS,edgeValsEW,Ain,dgorder,norder,nex,n
 		ENDDO !j
 	ENDDO !i
 
-	IF(dozshulimit) THEN ! Use polynomial modifications from Zhang and Shu (2009)
-        write(*,*) 'Warning: Not Implemented yet!' 
-        stop
-	ENDIF
 
 	! Extend edge values periodically
 	edgeValsEW(0,:,:,:) = edgeValsEW(nex,:,:,:)

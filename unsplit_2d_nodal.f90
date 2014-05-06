@@ -30,22 +30,28 @@ PROGRAM EXECUTE
 	write(*,*) '======'
 	transient = .FALSE.
 	start_res = 8 ! Number of elements in each direction
-	CALL test2d_nodal(1,start_res,start_res,2,3,20,0.01D0) !1D0/(2D0*4D0-1D0) !0.3D0/sqrt(2d0)
+!	CALL test2d_nodal(1,start_res,start_res,2,3,20,0.01D0) !1D0/(2D0*4D0-1D0) !0.3D0/sqrt(2d0)
 
 	write(*,*) '======'
 	write(*,*) 'TEST 2: Smooth cosbell deformation'
 	write(*,*) '======'
 	transient = .TRUE.
-!	CALL test2d_nodal(6,start_res,start_res,2,2,20,0.01D0) !1D0/(2D0*4D0-1D0)
+!	CALL test2d_nodal(6,start_res,start_res,2,3,20,0.1D0) !1D0/(2D0*4D0-1D0)
 
 	write(*,*) '======'
 	write(*,*) 'TEST 3: Standard cosbell deformation'
 	write(*,*) '======'
 	transient = .TRUE.
-!	CALL test2d_nodal(5,start_res,start_res,2,3,20,1D0/(2D0*4D0-1D0))
+!	CALL test2d_nodal(5,start_res,start_res,2,3,20,0.01D0) !1D0/(2D0*4D0-1D0)
 
 	write(*,*) '======'
-	write(*,*) 'TEST 4: Square wave deformation'
+	write(*,*) 'TEST 4: Solid body rotation of cylinder'
+	write(*,*) '======'
+	transient = .FALSE.
+	CALL test2d_nodal(2,start_res,start_res,2,3,20,0.1D0) !1D0/(2D0*4D0-1D0)
+
+	write(*,*) '======'
+	write(*,*) 'TEST 5: Square wave deformation'
 	write(*,*) '======'
 	transient = .TRUE.
 !	CALL test2d_nodal(7,start_res,start_res,2,3,20,1D0/(2D0*4D0-1D0)) !1D0/(2D0*4D0-1D0)
@@ -70,9 +76,9 @@ CONTAINS
 
 		INTEGER :: nex,ney,nxiplot,netaplot
 		REAL(KIND=8) :: dxel,dyel,tfinal, tmp_umax, tmp_vmax, dxm, dym,dt, time,calculatedMu
-		REAL(KIND=8), ALLOCATABLE, DIMENSION(:,:) :: Leg,lagrangeDeriv,C0,C,tmpArray,tmpErr
+		REAL(KIND=8), ALLOCATABLE, DIMENSION(:,:) :: Leg,lagrangeDeriv,lagGaussVal,C0,C,tmpArray,tmpErr
 		REAL(KIND=8), ALLOCATABLE, DIMENSION(:) :: gllNodes,gllWeights,gaussNodes,gaussWeights,x_elcent,y_elcent,&
-                                                   xplot,yplot,xiplot,etaplot
+                                                   xplot,yplot,xiplot,etaplot,nodeSpacing,lambda
 		REAL(KIND=8), ALLOCATABLE, DIMENSION(:,:,:,:) :: A,A0,& ! Coefficent array
 													     u0,v0 ! Velocites within each element  
 														
@@ -86,7 +92,7 @@ CONTAINS
 
 		if(nlevel.lt.1) STOP 'nlev should be at least 1 in test2d_modal'
 
-		nmethod_final = 1
+		nmethod_final = 2
 		tmp_method = 0
 		tmp_method(1) = 1
         tmp_method(2) = 2
@@ -101,24 +107,27 @@ CONTAINS
 				  outdir = 'ndgunlim/'
 				  norder = 4
 				  dgorder = norder !2*(norder+1)
-				  WRITE(*,*) 'N=',norder,'Uses a total of',(norder+1)**2,'Legendre basis polynomials'
+				  WRITE(*,*) 'N=',norder,'Uses a total of',(norder+1)**2,'Lagrange basis polynomials'
 				CASE(2)
 				  WRITE(*,*) '2D Nodal, Unsplit, Zhang and Shu Limiting'
 				  dozshulimit = .TRUE.
 				  outdir = 'ndgzhshu/'
 				  norder = 4
 				  dgorder = norder
-				  WRITE(*,*) 'N=',norder,'Uses a total of',(norder+1)**2,'Legendre basis polynomials'
+				  WRITE(*,*) 'N=',norder,'Uses a total of',(norder+1)**2,'Lagrange basis polynomials'
 			END SELECT
 
 			! Initialize quadrature weights and nodes (only done once per call)
 			ALLOCATE(gllnodes(0:dgorder),gllweights(0:dgorder),gaussNodes(0:dgorder),gaussWeights(0:dgorder),&
-                    lagrangeDeriv(0:norder,0:dgorder),tmpArray(0:norder,0:norder),STAT=ierr)
+                    lagrangeDeriv(0:norder,0:dgorder),tmpArray(0:norder,0:norder),nodeSpacing(0:dgorder-1),&
+                    lagGaussVal(0:norder,0:dgorder),lambda(0:dgorder),STAT=ierr)
 
             CALL gllquad_nodes(dgorder,gllNodes)
             CALL gllquad_weights(dgorder,gllNodes,gllWeights)
             CALL gaussquad_nodes(dgorder+1,gaussNodes)
             CALL gaussquad_weights(dgorder+1,gaussNodes,gaussWeights)
+
+            nodeSpacing = gllNodes(1:dgorder)-gllNodes(0:dgorder-1)
 
 			nxiplot = norder+1
 			netaplot = norder+1
@@ -130,6 +139,14 @@ CONTAINS
 
             ! Fill matrix of basis derivatives at GLL nodes (note that this assumes lagrangeDeriv is square!)    
             CALL Dmat(dgorder,gllNodes,lagrangeDeriv)
+
+            ! Fill maxtris of basis polynomials evaluated at Gauss quadrature nodes (used in Zhang and Shu Limiter)
+            CALL baryWeights(lambda,gllnodes,dgorder)
+            DO i=0,norder
+                DO j=0,dgorder
+                    lagGaussVal(i,j) = lagrange(gaussNodes(j),i,dgorder,gllNodes,lambda)
+                ENDDO !j
+            ENDDO !i
 
 			DO p=1,nlevel
 				
@@ -194,8 +211,10 @@ CONTAINS
                 ENDDO !i
 
 				! Set up timestep
-				dxm = dxel
-				dym = dyel
+				dxm = dxel*MINVAL(nodeSpacing)/2D0
+				dym = dyel*MINVAL(nodeSpacing)/2D0
+!                dxm = dxel
+!               dym = dyel
 
 				tmp_umax = MAXVAL(u0)
 				tmp_vmax = MAXVAL(v0)
@@ -226,7 +245,7 @@ CONTAINS
 				DO n=1,nstep
 
                     CALL coeff_update(A,u0,v0,gllNodes,gllWeights,gaussNodes,lagrangeDeriv,time,dt,dxel,dyel,nex,ney,&
-                                      norder,dgorder,dozshulimit,transient)
+                                      norder,dgorder,lagGaussVal,dozshulimit,transient)
 
 					time = time + dt
 	
@@ -326,6 +345,7 @@ CONTAINS
         REAL(KIND=8), DIMENSION(1:nex,0:norder) :: xQuad
         REAL(KIND=8), DIMENSION(1:ney,0:norder) :: yQuad
         REAL(KIND=8), DIMENSION(1:nex,1:ney,0:norder,0:norder,0:1) :: psiu,psiv
+        REAL(KIND=8), DIMENSION(0:norder,0:norder) :: r
         REAL(KIND=8) :: PI,dxmin,dymin,dxel,dyel
         INTEGER :: i,j,k
 
@@ -348,7 +368,7 @@ CONTAINS
 
         ! Fill streamfunction array
         SELECT CASE(ntest)
-            CASE(1) ! uniform velocity u = v = 1
+            CASE(1,10) ! uniform velocity u = v = 1
                 DO i=1,nex
                     DO j=1,ney
                         DO k=0,norder
@@ -359,7 +379,33 @@ CONTAINS
                         psiv(i,j,k,:,0) = yQuad(j,:) - (xQuad(i,k) - dxmin/2d0)
                         ENDDO !k
                     ENDDO !j
-                ENDDO !i 
+                ENDDO !i
+            CASE(2:4) ! Solid body rotation
+                ! pi*( (x-0.5)**2 + (y-0.5)**2 )
+                DO i=1,nex
+                    DO j=1,ney
+                        DO k=0,norder
+                        psiu(i,j,k,:,1) = PI*( (xQuad(i,k)-0.5D0)**2 + (yQuad(j,:) + dymin/2d0 -0.5D0)**2 )
+                        psiu(i,j,k,:,0) = PI*( (xQuad(i,k)-0.5D0)**2 + (yQuad(j,:) - dymin/2d0 -0.5D0)**2 ) 
+                        
+                        psiv(i,j,k,:,1) = PI*( (xQuad(i,k) + dxmin/2d0-0.5D0)**2 + (yQuad(j,:) -0.5D0)**2 )
+                        psiv(i,j,k,:,0) = PI*( (xQuad(i,k) - dymin/2d0-0.5D0)**2 + (yQuad(j,:) -0.5D0)**2 ) 
+                        ENDDO !k
+                    ENDDO !j
+                ENDDO !i
+            CASE(5:7,100) ! Leveque deformation flow
+				!(1/pi)*sin(pi*x(i))**2 * sin(pi*y(j))**2
+                DO i=1,nex
+                    DO j=1,ney
+                        DO k=0,norder
+                        psiu(i,j,k,:,1) = (1D0/PI)*(DSIN(PI*xQuad(i,k))**2 * DSIN(PI*(yQuad(j,:)+dymin/2d0))**2)
+                        psiu(i,j,k,:,0) = (1D0/PI)*(DSIN(PI*xQuad(i,k))**2 * DSIN(PI*(yQuad(j,:)-dymin/2d0))**2)
+
+                        psiv(i,j,k,:,1) = (1D0/PI)*(DSIN(PI*(xQuad(i,k)+dxmin/2d0))**2 * DSIN(PI*yQuad(j,:))**2)
+                        psiv(i,j,k,:,0) = (1D0/PI)*(DSIN(PI*(xQuad(i,k)-dxmin/2d0))**2 * DSIN(PI*yQuad(j,:))**2)
+                        ENDDO !k
+                    ENDDO !j
+                ENDDO !i
         END SELECT !ntest
 
 		! Compute velocity from stream functions
@@ -372,7 +418,7 @@ CONTAINS
 
         ! Initialize coefficent array
         SELECT CASE(ntest)
-            CASE(1)
+            CASE(1) ! uniform advection of a sine wave
                 cdf_out = 'dg2d_sine_adv.nc'
                 tfinal = 1D0
                 DO i=1,nex
@@ -382,6 +428,51 @@ CONTAINS
                         ENDDO !k
                     ENDDO!j
                 ENDDO!i
+
+            CASE(2) ! solid body rotation of a cylinder
+                cdf_out = 'dg2d_rot_cylinder.nc'
+                tfinal = 1D0
+                A = 0D0
+                DO i=1,nex
+                    DO j=1,ney
+                        DO k=0,norder
+                            r(k,:) = SQRT((xQuad(i,k)-0.3d0)**2 + (yQuad(j,:)-0.3d0)**2)
+                        ENDDO !k
+                        WHERE(r .lt. 0.125D0)
+                            A(i,j,:,:) = 1D0
+                        END WHERE
+                    ENDDO!j
+                ENDDO!i
+
+            CASE(5) ! standard cosbell deformation
+				cdf_out = 'dg2d_def_cosbell.nc'
+				tfinal = 5D0
+                A = 0D0
+                DO i=1,nex
+                    DO j=1,ney
+                        DO k=0,norder ! Fill distance array for (i,j) element
+                            r(k,:) = 4D0*SQRT( (xQuad(i,k)-0.25D0)**2 + (yQuad(j,:)-0.25D0)**2 )
+                        ENDDO !k
+                        WHERE(r .lt. 1D0)                            
+                            A(i,j,:,:) = (0.5d0*(1.d0 + DCOS(PI*r(:,:))))
+                        END WHERE
+                    ENDDO !j
+                ENDDO !i
+
+            CASE(6) ! smoother cosbell deformation
+				cdf_out = 'dg2d_smth_cosbell.nc'
+				tfinal = 5D0
+                A = 0D0
+                DO i=1,nex
+                    DO j=1,ney
+                        DO k=0,norder ! Fill distance array for (i,j) element
+                            r(k,:) = 3D0*SQRT( (xQuad(i,k)-0.4D0)**2 + (yQuad(j,:)-0.4D0)**2 )
+                        ENDDO !k
+                        WHERE(r .lt. 1D0)                            
+                            A(i,j,:,:) = (0.5d0*(1.d0 + DCOS(PI*r(:,:))))**3
+                        END WHERE
+                    ENDDO !j
+                ENDDO !i
         END SELECT !ntest
 
     END SUBROUTINE init2d
