@@ -48,13 +48,20 @@ PROGRAM EXECUTE
 	write(*,*) 'TEST 4: Solid body rotation of cylinder'
 	write(*,*) '======'
 	transient = .FALSE.
-	CALL test2d_nodal(2,start_res,start_res,2,3,20,0.1D0) !1D0/(2D0*4D0-1D0)
+!	CALL test2d_nodal(2,start_res,start_res,2,3,20,0.1D0) !1D0/(2D0*4D0-1D0)
 
 	write(*,*) '======'
 	write(*,*) 'TEST 5: Square wave deformation'
 	write(*,*) '======'
 	transient = .TRUE.
 !	CALL test2d_nodal(7,start_res,start_res,2,3,20,1D0/(2D0*4D0-1D0)) !1D0/(2D0*4D0-1D0)
+
+	write(*,*) '======'
+	write(*,*) 'TEST 6: Solid body rotation of cylinder (modified for frank)'
+	write(*,*) '======'
+	transient = .FALSE.
+	CALL test2d_nodal(3,start_res,start_res,2,3,20,0.1D0) !1D0/(2D0*4D0-1D0)
+
 
 CONTAINS
 	SUBROUTINE test2d_nodal(ntest,nex0,ney0,nscale,nlevel,noutput,maxcfl)
@@ -76,6 +83,7 @@ CONTAINS
 
 		INTEGER :: nex,ney,nxiplot,netaplot
 		REAL(KIND=8) :: dxel,dyel,tfinal, tmp_umax, tmp_vmax, dxm, dym,dt, time,calculatedMu
+        REAL(KIND=8), DIMENSION(1:2) :: xEdge,yEdge
 		REAL(KIND=8), ALLOCATABLE, DIMENSION(:,:) :: Leg,lagrangeDeriv,lagGaussVal,C0,C,tmpArray,tmpErr
 		REAL(KIND=8), ALLOCATABLE, DIMENSION(:) :: gllNodes,gllWeights,gaussNodes,gaussWeights,x_elcent,y_elcent,&
                                                    xplot,yplot,xiplot,etaplot,nodeSpacing,lambda
@@ -148,14 +156,21 @@ CONTAINS
                 ENDDO !j
             ENDDO !i
 
+            xEdge(1) = -1D0
+            xEdge(2) = 1D0
+            yEdge = xEdge
+
+            write(*,*) 'Domain is: [',xEdge(1),',',xEdge(2),'].'
+            write(*,*) 'Warning: Not all tests have been implemented for non-[0,1] square domain!'
+
 			DO p=1,nlevel
 				
 				t0 = etime(tstart)
 
 				nex = nex0*nscale**(p-1)
 				ney = ney0*nscale**(p-1)
-				dxel = 1D0/DBLE(nex)
-				dyel = 1D0/DBLE(ney)
+				dxel = (xEdge(2)-xEdge(1))/DBLE(nex)
+				dyel = (yEdge(2)-yEdge(1))/DBLE(ney)
 
 				ALLOCATE(x_elcent(1:nex),y_elcent(1:ney),A(1:nex,1:ney,0:norder,0:norder),A0(1:nex,1:ney,0:norder,0:norder),&
                          u0(1:nex,1:ney,0:dgorder,0:dgorder), v0(1:nex,1:ney,0:dgorder,0:dgorder),&
@@ -168,12 +183,12 @@ CONTAINS
 				! u(i,j,l,m), v(i,j,l,m) : Horizontal/vertical vel. array ; (i,j) = element, (l,m) = horiz,vertical location
 				
 				! Initialize x- and y- grids and xi- and eta- plotting grids
-				x_elcent(1) = dxel/2D0
+				x_elcent(1) = xEdge(1)+dxel/2D0
 				DO i=2,nex
 					x_elcent(i) = x_elcent(i-1)+dxel
 				ENDDO !i
 
-				y_elcent(1) = dyel/2D0
+				y_elcent(1) = yEdge(1)+dyel/2D0
 				DO i=2,ney
 					y_elcent(i) = y_elcent(i-1)+dyel
 				ENDDO !i
@@ -188,7 +203,7 @@ CONTAINS
 
 				
 				! Initialize A, u, and v
-                CALL init2d(ntest,nex,ney,dgorder,norder,A,u0,v0,x_elcent,y_elcent,gllNodes,gllWeights,cdf_out,tfinal)
+                CALL init2d(ntest,nex,ney,dgorder,norder,A,u0,v0,x_elcent,y_elcent,gllNodes,gllWeights,xEdge,yEdge,cdf_out,tfinal)
                 A0 = A
 				cdf_out = outdir // cdf_out
 
@@ -326,7 +341,7 @@ CONTAINS
 	END SUBROUTINE test2d_nodal
 
 
-    SUBROUTINE init2d(ntest,nex,ney,dgorder,norder,A,u0,v0,x_elcent,y_elcent,gllNodes,gllWeights,cdf_out,tfinal)
+    SUBROUTINE init2d(ntest,nex,ney,dgorder,norder,A,u0,v0,x_elcent,y_elcent,gllNodes,gllWeights,xEdge,yEdge,cdf_out,tfinal)
     ! ----
     !  Computes initial conditons for coefficient matrix (by simple evaluation of IC function) and initial velocities (via a streamfunction)
     !  Also sets the final time and output file name
@@ -337,6 +352,7 @@ CONTAINS
         REAL(KIND=8), DIMENSION(1:nex), INTENT(IN) :: x_elcent
         REAL(KIND=8), DIMENSION(1:ney), INTENT(IN) :: y_elcent
         REAL(KIND=8), DIMENSION(0:dgorder) :: gllNodes,gllWeights
+        REAL(KIND=8), DIMENSION(1:2), INTENT(IN) :: xEdge,yEdge
         !Outputs
         REAL(KIND=8), DIMENSION(1:nex,1:ney,0:norder,0:norder), INTENT(OUT) :: A,u0,v0
         CHARACTER(LEN=40), INTENT(OUT) :: cdf_out
@@ -346,10 +362,16 @@ CONTAINS
         REAL(KIND=8), DIMENSION(1:ney,0:norder) :: yQuad
         REAL(KIND=8), DIMENSION(1:nex,1:ney,0:norder,0:norder,0:1) :: psiu,psiv
         REAL(KIND=8), DIMENSION(0:norder,0:norder) :: r
-        REAL(KIND=8) :: PI,dxmin,dymin,dxel,dyel
+        REAL(KIND=8), DIMENSION(1:2) :: domainCenter
+        REAL(KIND=8) :: PI,dxmin,dymin,dxel,dyel,xWidth,yWidth,xc,yc
         INTEGER :: i,j,k
 
 		PI = DACOS(-1D0)
+
+        xWidth = xEdge(2)-xEdge(1)
+        yWidth = yEdge(2)-yEdge(1)
+        domainCenter(1) = xEdge(1)+xWidth/2D0
+        domainCenter(2) = yEdge(1)+yWidth/2D0
 
         dxel = x_elcent(2) - x_elcent(1)
         dyel = y_elcent(2) - y_elcent(1)
@@ -385,11 +407,11 @@ CONTAINS
                 DO i=1,nex
                     DO j=1,ney
                         DO k=0,norder
-                        psiu(i,j,k,:,1) = PI*( (xQuad(i,k)-0.5D0)**2 + (yQuad(j,:) + dymin/2d0 -0.5D0)**2 )
-                        psiu(i,j,k,:,0) = PI*( (xQuad(i,k)-0.5D0)**2 + (yQuad(j,:) - dymin/2d0 -0.5D0)**2 ) 
+                        psiu(i,j,k,:,1) = PI*( (xQuad(i,k)-domainCenter(1))**2 + (yQuad(j,:) + dymin/2d0 -domainCenter(2))**2 )
+                        psiu(i,j,k,:,0) = PI*( (xQuad(i,k)-domainCenter(1))**2 + (yQuad(j,:) - dymin/2d0 -domainCenter(2))**2 ) 
                         
-                        psiv(i,j,k,:,1) = PI*( (xQuad(i,k) + dxmin/2d0-0.5D0)**2 + (yQuad(j,:) -0.5D0)**2 )
-                        psiv(i,j,k,:,0) = PI*( (xQuad(i,k) - dymin/2d0-0.5D0)**2 + (yQuad(j,:) -0.5D0)**2 ) 
+                        psiv(i,j,k,:,1) = PI*( (xQuad(i,k) + dxmin/2d0-domainCenter(1))**2 + (yQuad(j,:) -domainCenter(2))**2 )
+                        psiv(i,j,k,:,0) = PI*( (xQuad(i,k) - dymin/2d0-domainCenter(1))**2 + (yQuad(j,:) -domainCenter(2))**2 ) 
                         ENDDO !k
                     ENDDO !j
                 ENDDO !i
@@ -439,6 +461,24 @@ CONTAINS
                             r(k,:) = SQRT((xQuad(i,k)-0.3d0)**2 + (yQuad(j,:)-0.3d0)**2)
                         ENDDO !k
                         WHERE(r .lt. 0.125D0)
+                            A(i,j,:,:) = 1D0
+                        END WHERE
+                    ENDDO!j
+                ENDDO!i
+
+            CASE(3) ! solid body rotation of a cylinder (comparison to frank's code)
+                cdf_out = 'dg2d_rot_cylinder_modified.nc'
+                tfinal = 1D0
+                A = 0D0
+                xc = xEdge(1)+xWidth/4D0
+                yc = yEdge(1)+yWidth/2D0
+
+                DO i=1,nex
+                    DO j=1,ney
+                        DO k=0,norder
+                            r(k,:) = SQRT((xQuad(i,k)-xc)**2 + (yQuad(j,:)-yc)**2)
+                        ENDDO !k
+                        WHERE(r .lt. 0.25D0)
                             A(i,j,:,:) = 1D0
                         END WHERE
                     ENDDO!j
