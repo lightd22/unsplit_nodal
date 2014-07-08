@@ -36,7 +36,7 @@ PROGRAM EXECUTE
 	write(*,*) 'TEST 2: Smooth cosbell deformation'
 	write(*,*) '======'
 	transient = .TRUE.
-!	CALL test2d_nodal(6,start_res,start_res,2,3,20,0.1D0) !1D0/(2D0*4D0-1D0)
+	CALL test2d_nodal(6,start_res,start_res,2,3,20,0.05D0) !1D0/(2D0*4D0-1D0)
 
 	write(*,*) '======'
 	write(*,*) 'TEST 3: Standard cosbell deformation'
@@ -48,7 +48,7 @@ PROGRAM EXECUTE
 	write(*,*) 'TEST 4: Solid body rotation of cylinder'
 	write(*,*) '======'
 	transient = .FALSE.
-!	CALL test2d_nodal(2,start_res,start_res,2,3,20,0.1D0) !1D0/(2D0*4D0-1D0)
+!	CALL test2d_nodal(2,start_res,start_res,2,3,20,0.05D0) !1D0/(2D0*4D0-1D0)
 
 	write(*,*) '======'
 	write(*,*) 'TEST 5: Square wave deformation'
@@ -60,7 +60,7 @@ PROGRAM EXECUTE
 	write(*,*) 'TEST 6: Solid body rotation of cylinder (modified for frank)'
 	write(*,*) '======'
 	transient = .FALSE.
-	CALL test2d_nodal(3,start_res,start_res,2,3,20,0.1D0) !1D0/(2D0*4D0-1D0)
+!	CALL test2d_nodal(3,start_res,start_res,2,3,20,0.1D0) !1D0/(2D0*4D0-1D0)
 
 
 CONTAINS
@@ -156,7 +156,7 @@ CONTAINS
                 ENDDO !j
             ENDDO !i
 
-            xEdge(1) = -1D0
+            xEdge(1) = 0D0
             xEdge(2) = 1D0
             yEdge = xEdge
 
@@ -226,10 +226,10 @@ CONTAINS
                 ENDDO !i
 
 				! Set up timestep
-				dxm = dxel*MINVAL(nodeSpacing)/2D0
-				dym = dyel*MINVAL(nodeSpacing)/2D0
-!                dxm = dxel
-!               dym = dyel
+!				dxm = dxel*MINVAL(nodeSpacing)/2D0
+!				dym = dyel*MINVAL(nodeSpacing)/2D0
+                dxm = dxel
+                dym = dyel
 
 				tmp_umax = MAXVAL(u0)
 				tmp_vmax = MAXVAL(v0)
