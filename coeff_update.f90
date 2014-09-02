@@ -45,7 +45,6 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gaussNodes,lagrangeDeriv,tim
     INTEGER :: bctype
 	REAL(KIND=4) :: t0,tf,t1
 
-    t0 = etime(tstart)
 !    bctype = 1 ! Outflow
     bctype = 0 ! Periodic
 
@@ -109,8 +108,6 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gaussNodes,lagrangeDeriv,tim
         ENDIF
     ENDDO !stage
     A = A1
-
-tf = etime(tend) - t0
 
 END SUBROUTINE coeff_update
 

@@ -67,7 +67,7 @@ PROGRAM EXECUTE
 !	write(*,*) '======'
 !	write(*,*) 'TEST 6: Solid body rotation of cylinder (modified for frank)'
 !	write(*,*) '======'
-	transient = .FALSE.
+!	transient = .FALSE.
 !	CALL test2d_nodal(3,start_res,start_res,2,3,nout,0.758D0) !1D0/(2D0*4D0-1D0)
 !    muMAX = 0.5364D0!0.759D0/sqrt(2D0)
 !    muMAX = 1.05D0!0.759D0/sqrt(2D0)
@@ -357,7 +357,7 @@ CONTAINS
                     CALL output2d(A,xplot,yplot,gllWeights,gllNodes,nex,ney,norder,dgorder,nxiplot,netaplot,time,&
                                   calculatedMu,cdf_out,p,1) ! Close netCDF files
 				ENDIF
-				DEALLOCATE(A,A0,x_elcent,y_elcent,xplot,yplot,u0,v0,tmpErr,xplot,yplot,C,C0,STAT=ierr)
+				DEALLOCATE(A,A0,x_elcent,y_elcent,xplot,yplot,u0,v0,tmpErr,xQuad,yQuad,C,C0,STAT=ierr)
 			ENDDO
 		ENDDO
 		DEALLOCATE(gllnodes,gllweights,gaussnodes,gaussweights,xiplot,etaplot,tmpArray, tmpErr, STAT=ierr)
