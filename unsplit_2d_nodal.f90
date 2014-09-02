@@ -13,54 +13,65 @@ PROGRAM EXECUTE
     USE netCDF
     
     IMPLICIT NONE
-	INTEGER :: ntest,start_res
-	LOGICAL :: transient,DEBUG
+	INTEGER :: start_res,polyOrder
+	LOGICAL :: transient,DEBUG,doModalComparison
+	REAL(KIND=8) :: muMAX
 
-    DEBUG = .FALSE.
-
-	write(*,*) '======'
-	write(*,*) 'TEST 0: Uniform field, deformation flow'
-	write(*,*) '======'
-	transient = .TRUE.
+    DEBUG = .TRUE.
+    doModalComparison = .FALSE.
+    polyOrder = 4
 	start_res = 8
+
+!	write(*,*) '======'
+!	write(*,*) 'TEST 0: Uniform field, deformation flow'
+!	write(*,*) '======'
+!	transient = .TRUE.
 !	CALL test2d_nodal(100,start_res,start_res,2,3,20,0.01D0)
 
 	write(*,*) '======'
 	write(*,*) 'TEST 1: Uniform advection (u=v=1)'
 	write(*,*) '======'
 	transient = .FALSE.
-	start_res = 8 ! Number of elements in each direction
-!	CALL test2d_nodal(1,start_res,start_res,2,3,20,0.01D0) !1D0/(2D0*4D0-1D0) !0.3D0/sqrt(2d0)
+    muMAX = 0.690D0
+	CALL test2d_nodal(1,start_res,start_res,2,4,1,muMAX) !1D0/(2D0*4D0-1D0) !0.3D0/sqrt(2d0)
+ !  CALL test2d_nodal(10,start_res,start_res,2,1,-1,0.970D0) !0.970D0
+!   CALL test2d_nodal(10,start_res,start_res,2,2,40,0.500D0) !0.970D0
 
 	write(*,*) '======'
 	write(*,*) 'TEST 2: Smooth cosbell deformation'
 	write(*,*) '======'
 	transient = .TRUE.
-	CALL test2d_nodal(6,start_res,start_res,2,3,20,0.05D0) !1D0/(2D0*4D0-1D0)
+    muMAX = 0.869D0
+    write(*,*) 'muMAX=',muMAX
+!	CALL test2d_nodal(6,start_res,start_res,2,4,1,muMAX) !1D0/(2D0*4D0-1D0)
 
-	write(*,*) '======'
-	write(*,*) 'TEST 3: Standard cosbell deformation'
-	write(*,*) '======'
-	transient = .TRUE.
+!	write(*,*) '======'
+!	write(*,*) 'TEST 3: Standard cosbell deformation'
+!	write(*,*) '======'
+!	transient = .TRUE.
 !	CALL test2d_nodal(5,start_res,start_res,2,3,20,0.01D0) !1D0/(2D0*4D0-1D0)
 
-	write(*,*) '======'
-	write(*,*) 'TEST 4: Solid body rotation of cylinder'
-	write(*,*) '======'
-	transient = .FALSE.
-!	CALL test2d_nodal(2,start_res,start_res,2,3,20,0.05D0) !1D0/(2D0*4D0-1D0)
+!	write(*,*) '======'
+!	write(*,*) 'TEST 4: Solid body rotation of cylinder'
+!	write(*,*) '======'
+!	transient = .FALSE.
+!    start_res = 30
+!	CALL test2d_nodal(2,start_res,start_res,2,3,20,0.75D0) !0.08D0
 
-	write(*,*) '======'
-	write(*,*) 'TEST 5: Square wave deformation'
-	write(*,*) '======'
-	transient = .TRUE.
+!	write(*,*) '======'
+!	write(*,*) 'TEST 5: Square wave deformation'
+!	write(*,*) '======'
+!	transient = .TRUE.
 !	CALL test2d_nodal(7,start_res,start_res,2,3,20,1D0/(2D0*4D0-1D0)) !1D0/(2D0*4D0-1D0)
 
-	write(*,*) '======'
-	write(*,*) 'TEST 6: Solid body rotation of cylinder (modified for frank)'
-	write(*,*) '======'
+!	write(*,*) '======'
+!	write(*,*) 'TEST 6: Solid body rotation of cylinder (modified for frank)'
+!	write(*,*) '======'
 	transient = .FALSE.
-!	CALL test2d_nodal(3,start_res,start_res,2,3,20,0.1D0) !1D0/(2D0*4D0-1D0)
+!	CALL test2d_nodal(3,start_res,start_res,2,3,nout,0.758D0) !1D0/(2D0*4D0-1D0)
+!    muMAX = 0.5364D0!0.759D0/sqrt(2D0)
+!    muMAX = 1.05D0!0.759D0/sqrt(2D0)
+!	CALL test2d_nodal(11,start_res,start_res,2,3,50,muMAX)
 
 
 CONTAINS
@@ -85,10 +96,12 @@ CONTAINS
 		REAL(KIND=8) :: dxel,dyel,tfinal, tmp_umax, tmp_vmax, dxm, dym,dt, time,calculatedMu
         REAL(KIND=8), DIMENSION(1:2) :: xEdge,yEdge
 		REAL(KIND=8), ALLOCATABLE, DIMENSION(:,:) :: Leg,lagrangeDeriv,lagGaussVal,C0,C,tmpArray,tmpErr
+        REAL(KIND=8), ALLOCATABLE, DIMENSION(:,:) :: xQuad, yQuad
 		REAL(KIND=8), ALLOCATABLE, DIMENSION(:) :: gllNodes,gllWeights,gaussNodes,gaussWeights,x_elcent,y_elcent,&
                                                    xplot,yplot,xiplot,etaplot,nodeSpacing,lambda
 		REAL(KIND=8), ALLOCATABLE, DIMENSION(:,:,:,:) :: A,A0,& ! Coefficent array
 													     u0,v0 ! Velocites within each element  
+                                                
 														
 		INTEGER :: i,j,l,m,k,s,t,n
 
@@ -100,7 +113,7 @@ CONTAINS
 
 		if(nlevel.lt.1) STOP 'nlev should be at least 1 in test2d_modal'
 
-		nmethod_final = 2
+		nmethod_final = 1
 		tmp_method = 0
 		tmp_method(1) = 1
         tmp_method(2) = 2
@@ -113,14 +126,14 @@ CONTAINS
 				  WRITE(*,*) '2D Nodal, Unsplit, No limiting'
 				  dozshulimit = .FALSE.
 				  outdir = 'ndgunlim/'
-				  norder = 4
+				  norder = polyOrder
 				  dgorder = norder !2*(norder+1)
 				  WRITE(*,*) 'N=',norder,'Uses a total of',(norder+1)**2,'Lagrange basis polynomials'
 				CASE(2)
 				  WRITE(*,*) '2D Nodal, Unsplit, Zhang and Shu Limiting'
 				  dozshulimit = .TRUE.
 				  outdir = 'ndgzhshu/'
-				  norder = 4
+				  norder = polyOrder
 				  dgorder = norder
 				  WRITE(*,*) 'N=',norder,'Uses a total of',(norder+1)**2,'Lagrange basis polynomials'
 			END SELECT
@@ -158,6 +171,7 @@ CONTAINS
 
             xEdge(1) = 0D0
             xEdge(2) = 1D0
+            if(ntest .eq. 11 .or. ntest .eq. 10) xEdge(1) = -1D0
             yEdge = xEdge
 
             write(*,*) 'Domain is: [',xEdge(1),',',xEdge(2),'].'
@@ -172,9 +186,11 @@ CONTAINS
 				dxel = (xEdge(2)-xEdge(1))/DBLE(nex)
 				dyel = (yEdge(2)-yEdge(1))/DBLE(ney)
 
+
 				ALLOCATE(x_elcent(1:nex),y_elcent(1:ney),A(1:nex,1:ney,0:norder,0:norder),A0(1:nex,1:ney,0:norder,0:norder),&
-                         u0(1:nex,1:ney,0:dgorder,0:dgorder), v0(1:nex,1:ney,0:dgorder,0:dgorder),&
-						 C0(1:nex,1:ney), C(1:nex,1:ney), xplot(1:nxiplot*nex),yplot(1:netaplot*ney), STAT=ierr)
+                         u0(1:nex,1:ney,0:dgorder,0:dgorder), v0(1:nex,1:ney,0:dgorder,0:dgorder), &
+						 C0(1:nex,1:ney), C(1:nex,1:ney), xplot(1:nxiplot*nex),yplot(1:netaplot*ney),&
+                         xQuad(1:nex,0:dgorder),yQuad(1:ney,0:dgorder), STAT=ierr)
 
 				! Elements are ordered row-wise within the domain
 
@@ -203,17 +219,11 @@ CONTAINS
 
 				
 				! Initialize A, u, and v
-                CALL init2d(ntest,nex,ney,dgorder,norder,A,u0,v0,x_elcent,y_elcent,gllNodes,gllWeights,xEdge,yEdge,cdf_out,tfinal)
+                CALL init2d(ntest,nex,ney,dgorder,norder,A,u0,v0,x_elcent,y_elcent,gllNodes,gllWeights,xEdge,yEdge,cdf_out,&
+                            tfinal,xQuad,yQuad)
+
                 A0 = A
 				cdf_out = outdir // cdf_out
-
-                IF(DEBUG) THEN
-                    write(*,*) 'Debugging..'
-                    u0 = 1D0
-                    v0 = 1D0
-                    A = 1D0
-                    A0 = A
-                ENDIF
 
 				! Store element averages for conservation estimation
                 DO i=1,nex
@@ -226,26 +236,40 @@ CONTAINS
                 ENDDO !i
 
 				! Set up timestep
-!				dxm = dxel*MINVAL(nodeSpacing)/2D0
-!				dym = dyel*MINVAL(nodeSpacing)/2D0
-                dxm = dxel
-                dym = dyel
+                IF(doModalComparison) THEN
+                    dxm = dxel
+                    dym = dyel
+                ELSE
+            			dxm = dxel*MINVAL(nodeSpacing)/2D0
+                    dym = dyel*MINVAL(nodeSpacing)/2D0
+                ENDIF
 
-				tmp_umax = MAXVAL(u0)
-				tmp_vmax = MAXVAL(v0)
+    				tmp_umax = MAXVAL(abs(u0))
+    				tmp_vmax = MAXVAL(abs(v0))
 
-				IF(noutput .eq. -1) THEN
-					nstep = CEILING( (tfinal/maxcfl)*(tmp_umax + tmp_vmax)/(dxm) )
-					nout = nstep
-				ELSE
-					nstep = noutput*CEILING( (tfinal/maxcfl)*(sqrt(tmp_umax**2 + tmp_vmax**2))/(dxm)/DBLE(noutput) )
-					nout = noutput
-				ENDIF
+                IF(noutput .eq. -1) THEN
+        				nstep = CEILING((tfinal/maxcfl)*(maxval(sqrt(u0**2 + v0**2))/min(dxm,dym)))
+        			    nout = nstep
+                ELSE IF(doModalComparison) THEN
+                    nstep = noutput*CEILING( (tfinal/maxcfl)*MAX(tmp_umax/dxm,tmp_vmax/dym)/DBLE(noutput) )
+                    nout = noutput
+                ELSE IF(DEBUG .and. p.gt.1) THEN
+                    write(*,*) 'Debugging..'
+                    nstep = nstep*2
+                ELSE
+                		nstep = noutput*CEILING( (tfinal/maxcfl)*(maxval(sqrt(u0**2 + v0**2))/min(dxm,dym))/DBLE(noutput) )
+                		nout = noutput
+                ENDIF !noutput
 
 				dt = tfinal/DBLE(nstep)
-                calculatedMu = (sqrt(tmp_umax**2 + tmp_vmax**2)*dt)/dxm
+                calculatedMu = maxval(sqrt(u0**2 + v0**2))*dt/min(dxm,dym)
+!                calculatedMu = maxval(sqrt(u0**2 + v0**2))*dt/min(dxel,dyel)
+                write(*,*) 'mu used =',calculatedMu
+                !calculatedMu = (tmp_umax/dxm + tmp_vmax/dym)*dt
+
 
 				IF(p .eq. 1) THEN ! Set up netCDF file
+                    write(*,*) 'Maximum velocity: |u| = ',maxval(abs(sqrt(u0**2+v0**2)))
 					CALL output2d(A0,xplot,yplot,gllWeights,gllNodes,nex,ney,norder,dgorder,nxiplot,netaplot,tfinal,calculatedMu,cdf_out,nout,-1)
 				ENDIF
 
@@ -259,9 +283,10 @@ CONTAINS
 				time = 0D0
 				DO n=1,nstep
 
+!                    A0 = A
                     CALL coeff_update(A,u0,v0,gllNodes,gllWeights,gaussNodes,lagrangeDeriv,time,dt,dxel,dyel,nex,ney,&
                                       norder,dgorder,lagGaussVal,dozshulimit,transient)
-
+ !                   write(*,*) 'CHANGE IN A',maxval(abs(A-A0))
 					time = time + dt
 	
 					IF((MOD(n,nstep/nout).eq.0).OR.(n.eq.nstep)) THEN
@@ -306,13 +331,14 @@ CONTAINS
                         tmpErr(i,j) = SUM(tmpArray)
                     ENDDO !j
                 ENDDO !i                
-                e2(p) = 0.25D0*dxel*dyel*SUM(tmpErr)
+                e2(p) = sqrt(0.25D0*dxel*dyel*SUM(tmpErr))
 
                 ei(p) = MAXVAL(ABS(A(:,:,:,:) - A0(:,:,:,:)))
 
+
         			if (p.eq.1) then
-		        	write(UNIT=6,FMT='(A107)') &
-'   nex    ney      E1        E2       Einf      convergence rate  overshoot  undershoot   cons cputime time step'
+		        	write(UNIT=6,FMT='(A125)') &
+'   nex    ney     E1       E2         Einf      convergence rate  overshoot  undershoot   cons        cputime  nstep   tf   '
 		        	cnvg1 = 0.d0
 		        	cnvg2 = 0.d0
 		        	cnvgi = 0.d0
@@ -325,23 +351,24 @@ CONTAINS
                     cnvg1, cnvg2, cnvgi, &
                     tmp_qmax-MAXVAL(A0), &
                     MINVAL(A0)-tmp_qmin, &
-                    cons, tf, nstep
+                    cons, tf, nstep,tfinal
 
 				IF(p .eq. nlevel) THEN
                     CALL output2d(A,xplot,yplot,gllWeights,gllNodes,nex,ney,norder,dgorder,nxiplot,netaplot,time,&
                                   calculatedMu,cdf_out,p,1) ! Close netCDF files
 				ENDIF
-				DEALLOCATE(A,A0,x_elcent,y_elcent,xplot,yplot,u0,v0,tmpErr,STAT=ierr)
+				DEALLOCATE(A,A0,x_elcent,y_elcent,xplot,yplot,u0,v0,tmpErr,xplot,yplot,C,C0,STAT=ierr)
 			ENDDO
 		ENDDO
 		DEALLOCATE(gllnodes,gllweights,gaussnodes,gaussweights,xiplot,etaplot,tmpArray, tmpErr, STAT=ierr)
 
-990    format(2i6,3e12.4,3f5.2,3e12.4,f8.2,i8)
+990    format(2i6,3e12.4,3f5.2,3e12.4,f8.2,i8,f8.2)
 
 	END SUBROUTINE test2d_nodal
 
 
-    SUBROUTINE init2d(ntest,nex,ney,dgorder,norder,A,u0,v0,x_elcent,y_elcent,gllNodes,gllWeights,xEdge,yEdge,cdf_out,tfinal)
+    SUBROUTINE init2d(ntest,nex,ney,dgorder,norder,A,u0,v0,x_elcent,y_elcent,gllNodes,gllWeights,xEdge,yEdge,cdf_out,tfinal,&
+                        xQuad,yQuad)
     ! ----
     !  Computes initial conditons for coefficient matrix (by simple evaluation of IC function) and initial velocities (via a streamfunction)
     !  Also sets the final time and output file name
@@ -358,15 +385,17 @@ CONTAINS
         CHARACTER(LEN=40), INTENT(OUT) :: cdf_out
         REAL(KIND=8), INTENT(OUT) :: tfinal
         !Local Variables
-        REAL(KIND=8), DIMENSION(1:nex,0:norder) :: xQuad
-        REAL(KIND=8), DIMENSION(1:ney,0:norder) :: yQuad
+        REAL(KIND=8), DIMENSION(1:nex,0:norder), INTENT(OUT) :: xQuad
+        REAL(KIND=8), DIMENSION(1:ney,0:norder), INTENT(OUT) :: yQuad
         REAL(KIND=8), DIMENSION(1:nex,1:ney,0:norder,0:norder,0:1) :: psiu,psiv
         REAL(KIND=8), DIMENSION(0:norder,0:norder) :: r
         REAL(KIND=8), DIMENSION(1:2) :: domainCenter
-        REAL(KIND=8) :: PI,dxmin,dymin,dxel,dyel,xWidth,yWidth,xc,yc
+        REAL(KIND=8) :: PI,dxmin,dymin,dxel,dyel,xWidth,yWidth,xc,yc,spd
         INTEGER :: i,j,k
 
 		PI = DACOS(-1D0)
+        spd = 2D0*PI
+        IF(ntest .eq. 11) spd = 1D0
 
         xWidth = xEdge(2)-xEdge(1)
         yWidth = yEdge(2)-yEdge(1)
@@ -402,16 +431,23 @@ CONTAINS
                         ENDDO !k
                     ENDDO !j
                 ENDDO !i
-            CASE(2:4) ! Solid body rotation
+            CASE(2:4,11) ! Solid body rotation
                 ! pi*( (x-0.5)**2 + (y-0.5)**2 )
                 DO i=1,nex
                     DO j=1,ney
                         DO k=0,norder
-                        psiu(i,j,k,:,1) = PI*( (xQuad(i,k)-domainCenter(1))**2 + (yQuad(j,:) + dymin/2d0 -domainCenter(2))**2 )
-                        psiu(i,j,k,:,0) = PI*( (xQuad(i,k)-domainCenter(1))**2 + (yQuad(j,:) - dymin/2d0 -domainCenter(2))**2 ) 
+!                        psiu(i,j,k,:,1) = PI*( (xQuad(i,k)-domainCenter(1))**2 + (yQuad(j,:) + dymin/2d0 -domainCenter(2))**2 )
+!                        psiu(i,j,k,:,0) = PI*( (xQuad(i,k)-domainCenter(1))**2 + (yQuad(j,:) - dymin/2d0 -domainCenter(2))**2 ) 
                         
-                        psiv(i,j,k,:,1) = PI*( (xQuad(i,k) + dxmin/2d0-domainCenter(1))**2 + (yQuad(j,:) -domainCenter(2))**2 )
-                        psiv(i,j,k,:,0) = PI*( (xQuad(i,k) - dymin/2d0-domainCenter(1))**2 + (yQuad(j,:) -domainCenter(2))**2 ) 
+!                        psiv(i,j,k,:,1) = PI*( (xQuad(i,k) + dxmin/2d0-domainCenter(1))**2 + (yQuad(j,:) -domainCenter(2))**2 )
+!                        psiv(i,j,k,:,0) = PI*( (xQuad(i,k) - dymin/2d0-domainCenter(1))**2 + (yQuad(j,:) -domainCenter(2))**2 ) 
+
+                     psiu(i,j,k,:,1) = spd*0.5D0*( (xQuad(i,k)-domainCenter(1))**2 + (yQuad(j,:) + dymin/2d0 -domainCenter(2))**2 )
+                     psiu(i,j,k,:,0) = spd*0.5D0*( (xQuad(i,k)-domainCenter(1))**2 + (yQuad(j,:) - dymin/2d0 -domainCenter(2))**2 ) 
+                        
+                     psiv(i,j,k,:,1) = spd*0.5D0*( (xQuad(i,k) + dxmin/2d0-domainCenter(1))**2 + (yQuad(j,:) -domainCenter(2))**2 )
+                     psiv(i,j,k,:,0) = spd*0.5D0*( (xQuad(i,k) - dymin/2d0-domainCenter(1))**2 + (yQuad(j,:) -domainCenter(2))**2 ) 
+
                         ENDDO !k
                     ENDDO !j
                 ENDDO !i
@@ -453,12 +489,12 @@ CONTAINS
 
             CASE(2) ! solid body rotation of a cylinder
                 cdf_out = 'dg2d_rot_cylinder.nc'
-                tfinal = 1D0
+                tfinal = 2D0*PI
                 A = 0D0
                 DO i=1,nex
                     DO j=1,ney
                         DO k=0,norder
-                            r(k,:) = SQRT((xQuad(i,k)-0.3d0)**2 + (yQuad(j,:)-0.3d0)**2)
+                            r(k,:) = SQRT((xQuad(i,k)-0.25d0)**2 + (yQuad(j,:)-0.5d0)**2)
                         ENDDO !k
                         WHERE(r .lt. 0.125D0)
                             A(i,j,:,:) = 1D0
@@ -466,7 +502,7 @@ CONTAINS
                     ENDDO!j
                 ENDDO!i
 
-            CASE(3) ! solid body rotation of a cylinder (comparison to frank's code)
+            CASE(3,10:11) ! solid body rotation of a cylinder (comparison to frank's code)
                 cdf_out = 'dg2d_rot_cylinder_modified.nc'
                 tfinal = 1D0
                 A = 0D0
@@ -514,6 +550,14 @@ CONTAINS
                     ENDDO !j
                 ENDDO !i
         END SELECT !ntest
+
+        if(ntest .eq. 10) then
+            tfinal = xWidth*10D0*tfinal*5
+        elseif(ntest .eq. 11) then
+            tfinal = 3D0*2D0*PI
+        elseif(ntest .eq. 6) then
+            tfinal = 5D0*tfinal
+        endif
 
     END SUBROUTINE init2d
 
