@@ -288,6 +288,7 @@ SUBROUTINE polyMod(Ain,gllWeights,lagGaussVal,nex,ney,dgorder,norder)
     REAL(KIND=8), DIMENSION(0:dgorder), INTENT(IN) :: gllWeights
     ! Outputs
     ! Local variables
+    LOGICAL gllOnly
 	INTEGER :: i,j,p,q,l
 	REAL(KIND=8), DIMENSION(0:norder,0:norder) :: tmpArray
     REAL(KIND=8) :: theta,elemAvg,valMin
@@ -306,6 +307,10 @@ SUBROUTINE polyMod(Ain,gllWeights,lagGaussVal,nex,ney,dgorder,norder)
             ! 3) Gauss Quad Nodes x GLL Quad Nodes
             valMin = HUGE(1D0) ! Arbitrary initial value for valMin
 
+!gllOnly = .FALSE.
+!IF(gllOnly) THEN
+!    GO TO 999
+!ENDIF
             ! First do Gauss x Gauss points
             DO p=0,dgorder
                 DO q=0,dgorder
@@ -323,10 +328,16 @@ SUBROUTINE polyMod(Ain,gllWeights,lagGaussVal,nex,ney,dgorder,norder)
                 ENDDO !q
             ENDDO !p
 
+999 continue
+
             ! (Optionally) look at GLL x GLL (the nodal coefficients themselves) to ensure that result will be PD where we evaluate it
             valMin = MIN(valMin,MINVAL(Ain(i,j,:,:)))
 
             ! Compute theta
+IF(elemAvg .lt. 0d0) THEN
+
+    write(*,*) 'WAT'
+ENDIF
             theta = MIN(abs(elemAvg)/(abs(valMin-elemAvg)),1D0)
 
             ! Rescale reconstructing polynomial for (i,j)th element

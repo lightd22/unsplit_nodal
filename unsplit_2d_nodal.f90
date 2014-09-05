@@ -28,28 +28,32 @@ PROGRAM EXECUTE
 !	transient = .TRUE.
 !	CALL test2d_nodal(100,start_res,start_res,2,3,20,0.01D0)
 
-	write(*,*) '======'
-	write(*,*) 'TEST 1: Uniform advection (u=v=1)'
-	write(*,*) '======'
+!	write(*,*) '======'
+!	write(*,*) 'TEST 1: Uniform advection (u=v=1)'
+!	write(*,*) '======'
 	transient = .FALSE.
-    muMAX = 0.690D0
-	CALL test2d_nodal(1,start_res,start_res,2,4,1,muMAX) !1D0/(2D0*4D0-1D0) !0.3D0/sqrt(2d0)
+    muMAX = 0.6850D0
+!	CALL test2d_nodal(1,start_res,start_res,2,4,1,muMAX) !1D0/(2D0*4D0-1D0) !0.3D0/sqrt(2d0)
  !  CALL test2d_nodal(10,start_res,start_res,2,1,-1,0.970D0) !0.970D0
 !   CALL test2d_nodal(10,start_res,start_res,2,2,40,0.500D0) !0.970D0
 
-	write(*,*) '======'
-	write(*,*) 'TEST 2: Smooth cosbell deformation'
-	write(*,*) '======'
-	transient = .TRUE.
-    muMAX = 0.869D0
-    write(*,*) 'muMAX=',muMAX
-!	CALL test2d_nodal(6,start_res,start_res,2,4,1,muMAX) !1D0/(2D0*4D0-1D0)
-
 !	write(*,*) '======'
-!	write(*,*) 'TEST 3: Standard cosbell deformation'
+!	write(*,*) 'TEST 2: Smooth cosbell deformation'
 !	write(*,*) '======'
 !	transient = .TRUE.
-!	CALL test2d_nodal(5,start_res,start_res,2,3,20,0.01D0) !1D0/(2D0*4D0-1D0)
+!    muMAX = 0.860D0
+!    write(*,*) 'muMAX=',muMAX
+!	CALL test2d_nodal(6,start_res,start_res,2,3,2,muMAX) !1D0/(2D0*4D0-1D0)
+
+	write(*,*) '======'
+	write(*,*) 'TEST 3: Standard cosbell deformation'
+	write(*,*) '======'
+	transient = .TRUE.
+!    muMAX = 0.860D0
+    muMAX = 0.860D0/2D0
+    start_res = 8
+    write(*,*) 'muMAX=',muMAX
+	CALL test2d_nodal(5,start_res,start_res,2,3,2,muMAX) !1D0/(2D0*4D0-1D0)
 
 !	write(*,*) '======'
 !	write(*,*) 'TEST 4: Solid body rotation of cylinder'
@@ -107,13 +111,13 @@ CONTAINS
 
 		CHARACTER(len=9) :: outdir
 		REAL(KIND=4), DIMENSION(2) :: tstart,tend
-		REAL(KIND=4) :: t0,tf
+		REAL(KIND=4) :: t0,tf,t1,t2
 
 		REAL(KIND=8) :: tmp_qmax,tmp_qmin
 
 		if(nlevel.lt.1) STOP 'nlev should be at least 1 in test2d_modal'
 
-		nmethod_final = 1
+		nmethod_final = 2
 		tmp_method = 0
 		tmp_method(1) = 1
         tmp_method(2) = 2
@@ -148,6 +152,8 @@ CONTAINS
             CALL gaussquad_nodes(dgorder+1,gaussNodes)
             CALL gaussquad_weights(dgorder+1,gaussNodes,gaussWeights)
 
+            write(*,*) minval(gaussWeights)
+
             nodeSpacing = gllNodes(1:dgorder)-gllNodes(0:dgorder-1)
 
 			nxiplot = norder+1
@@ -179,7 +185,7 @@ CONTAINS
 
 			DO p=1,nlevel
 				
-				t0 = etime(tstart)
+                CALL CPU_TIME(t0)
 
 				nex = nex0*nscale**(p-1)
 				ney = ney0*nscale**(p-1)
@@ -254,7 +260,7 @@ CONTAINS
                     nstep = noutput*CEILING( (tfinal/maxcfl)*MAX(tmp_umax/dxm,tmp_vmax/dym)/DBLE(noutput) )
                     nout = noutput
                 ELSE IF(DEBUG .and. p.gt.1) THEN
-                    write(*,*) 'Debugging..'
+!                    write(*,*) 'Debugging..'
                     nstep = nstep*2
                 ELSE
                 		nstep = noutput*CEILING( (tfinal/maxcfl)*(maxval(sqrt(u0**2 + v0**2))/min(dxm,dym))/DBLE(noutput) )
@@ -284,8 +290,11 @@ CONTAINS
 				DO n=1,nstep
 
 !                    A0 = A
+CALL CPU_TIME(t1)
                     CALL coeff_update(A,u0,v0,gllNodes,gllWeights,gaussNodes,lagrangeDeriv,time,dt,dxel,dyel,nex,ney,&
                                       norder,dgorder,lagGaussVal,dozshulimit,transient)
+CALL CPU_TIME(t2)
+!write(*,*) 'Post-step time:',t2-t1
  !                   write(*,*) 'CHANGE IN A',maxval(abs(A-A0))
 					time = time + dt
 	
@@ -298,7 +307,10 @@ CONTAINS
 					tmp_qmin = MIN(tmp_qmin,MINVAL(A))
 
 				ENDDO !n
-                tf = etime(tend) - t0
+
+                CALL CPU_TIME(tf)
+                tf = tf - t0
+
 
                 ! Store element averages for conservation estimation 
                 DO i=1,nex
@@ -478,7 +490,7 @@ CONTAINS
         SELECT CASE(ntest)
             CASE(1) ! uniform advection of a sine wave
                 cdf_out = 'dg2d_sine_adv.nc'
-                tfinal = 1D0
+                tfinal = 10D0
                 DO i=1,nex
                     DO j=1,ney
                         DO k=0,norder
@@ -530,7 +542,8 @@ CONTAINS
                             r(k,:) = 4D0*SQRT( (xQuad(i,k)-0.25D0)**2 + (yQuad(j,:)-0.25D0)**2 )
                         ENDDO !k
                         WHERE(r .lt. 1D0)                            
-                            A(i,j,:,:) = (0.5d0*(1.d0 + DCOS(PI*r(:,:))))
+!                            A(i,j,:,:) = (0.5d0*(1.d0 + DCOS(PI*r(:,:))))
+                            A(i,j,:,:) = (0.25d0*(1.d0 + DCOS(PI*r(:,:)))**2)
                         END WHERE
                     ENDDO !j
                 ENDDO !i
