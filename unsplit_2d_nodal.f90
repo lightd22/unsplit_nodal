@@ -30,7 +30,7 @@ PROGRAM EXECUTE
     testsVec = (/ 5 /)
 
     muMAX = 0.830D0
-    write(*,'(A7,F5.4)') 'muMAX=',muMAX
+    write(*,'(A7,F7.4)') 'muMAX=',muMAX
 
     DO nTest=1,testEnd
         whichTest = testsVec(nTest)
