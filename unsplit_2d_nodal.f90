@@ -13,7 +13,8 @@ PROGRAM EXECUTE
     USE netCDF
     
     IMPLICIT NONE
-	INTEGER :: start_res,polyOrder
+	INTEGER :: startRes,polyOrder,whichTest,testEnd,nTest,ierr
+    INTEGER, ALLOCATABLE, DIMENSION(:) :: testsVec
 	LOGICAL :: transient,DEBUG,doModalComparison,doTimeTest
 	REAL(KIND=8) :: muMAX
 
@@ -22,7 +23,46 @@ PROGRAM EXECUTE
     doTimeTest = .FALSE.
 
     polyOrder = 4
-	start_res = 12
+	startRes = 12
+    testEnd = 1
+
+    ALLOCATE(testsVec(1:testEnd),STAT=ierr)
+    testsVec = (/ 5 /)
+
+    muMAX = 0.830D0
+    write(*,'(A7,F5.4)') 'muMAX=',muMAX
+
+    DO nTest=1,testEnd
+        whichTest = testsVec(nTest)
+        write(*,*) '======'
+        SELECT CASE(whichTest)
+            CASE(0)
+                	write(*,*) 'TEST 0: Consistency test'
+                	transient = .TRUE.
+            CASE(1)
+                	write(*,*) 'TEST 1: Uniform advection (u=v=1)'                
+                	transient = .FALSE.
+            CASE(2)
+                	write(*,*) 'TEST 2: Solid body rotation of cylinder'
+                transient = .FALSE.
+            CASE(3)
+                	write(*,*) 'TEST 3: Solid body rotation of cylinder (modified for frank)'
+                transient = .FALSE.
+            CASE(5)
+                write(*,*) 'TEST 5: LeVeque Cosbell Deformation Test'
+                transient = .TRUE.
+            CASE(6)
+                	write(*,*) 'TEST 6: LeVeque Smoother Cosbell Deformation Test'
+                	transient = .TRUE.
+            CASE(7)
+                	write(*,*) 'TEST 7: Square wave deformation'
+                transient = .TRUE.
+        END SELECT
+        	write(*,*) '======'
+        	CALL test2d_nodal(whichTest,startRes,startRes,2,2,2,muMAX) !1D0/(2D0*4D0-1D0) !0.3D0/sqrt(2d0)
+    ENDDO
+    DEALLOCATE(testsVec,STAT=ierr)
+
 
 !	write(*,*) '======'
 !	write(*,*) 'TEST 0: Uniform field, deformation flow'
@@ -44,17 +84,16 @@ PROGRAM EXECUTE
 !	write(*,*) '======'
 !	transient = .TRUE.
 !    muMAX = 0.860D0
-    muMAX = 0.860D0
 !    write(*,*) 'muMAX=',muMAX
 !	CALL test2d_nodal(6,start_res,start_res,2,2,1,muMAX) !1D0/(2D0*4D0-1D0)
 
-	write(*,*) '======'
-	write(*,*) 'TEST 3: Standard cosbell deformation'
-	write(*,*) '======'
-	transient = .TRUE.
-    muMAX = 0.830D0
-    write(*,*) 'muMAX=',muMAX
-	CALL test2d_nodal(5,start_res,start_res,2,4,2,muMAX) !1D0/(2D0*4D0-1D0)
+!	write(*,*) '======'
+!	write(*,*) 'TEST 3: Standard cosbell deformation'
+!	write(*,*) '======'
+!	transient = .TRUE.
+ !   muMAX = 0.830D0
+  !  write(*,*) 'muMAX=',muMAX
+	!CALL test2d_nodal(5,start_res,start_res,2,4,2,muMAX) !1D0/(2D0*4D0-1D0)
 
 !	write(*,*) '======'
 !	write(*,*) 'TEST 4: Solid body rotation of cylinder'
