@@ -9,8 +9,8 @@
 ! By: Devin Light ; April 2014
 ! ==========================================
 
-SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gaussNodes,lagrangeDeriv,time,dt,dxel,dyel,nex,ney,norder,dgorder,&
-                        lagGaussVal,dozshulimit,transient)
+SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,dyel,nex,ney,norder,dgorder,&
+                        gqOrder,lagGaussVal,dozshulimit,transient)
     IMPLICIT NONE
 
 	! External functions
@@ -18,10 +18,11 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gaussNodes,lagrangeDeriv,tim
 	REAL(KIND=8), EXTERNAL :: vel_update ! Velocity update function
 
     ! Inputs
-    INTEGER, INTENT(IN) :: nex,ney,norder,dgorder
+    INTEGER, INTENT(IN) :: nex,ney,norder,dgorder,gqOrder
     REAL(KIND=8), INTENT(IN) :: dxel,dyel,dt,time
-    REAL(KIND=8), DIMENSION(0:dgorder), INTENT(IN) :: gllNodes,gllWeights,gaussNodes
-    REAL(KIND=8), DIMENSION(0:norder,0:dgorder), INTENT(IN) :: lagrangeDeriv,lagGaussVal
+    REAL(KIND=8), DIMENSION(0:dgorder), INTENT(IN) :: gllNodes,gllWeights
+    REAL(KIND=8), DIMENSION(0:norder,0:dgorder), INTENT(IN) :: lagrangeDeriv
+    REAL(KIND=8), DIMENSION(0:norder,0:gqOrder), INTENT(IN) :: lagGaussVal
 	REAL(KIND=8), DIMENSION(1:nex,1:ney,0:dgorder,0:dgorder), INTENT(IN) :: u0,v0
     LOGICAL, INTENT(IN) :: dozshulimit,transient
 
@@ -104,8 +105,9 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gaussNodes,lagrangeDeriv,tim
 		END SELECT
 
         IF(dozshulimit) THEN ! Do polynomial rescaling from Zhang and Shu (2010) (if necessary)
-            CALL polyMod(A1,gllWeights,lagGaussVal,nex,ney,dgorder,norder)
+            CALL polyMod(A1,gllWeights,lagGaussVal,nex,ney,dgorder,norder,gqOrder)
         ENDIF
+
     ENDDO !stage
     A = A1
 
@@ -279,10 +281,10 @@ SUBROUTINE evalExpansion(quadVals,edgeValsNS,edgeValsEW,Ain,dgorder,norder,nex,n
 
 END SUBROUTINE evalExpansion
 
-SUBROUTINE polyMod(Ain,gllWeights,lagGaussVal,nex,ney,dgorder,norder)
+SUBROUTINE polyMod(Ain,gllWeights,lagGaussVal,nex,ney,dgorder,norder,gqOrder)
     IMPLICIT NONE
     ! Inputs
-    INTEGER, INTENT(IN) :: nex,ney,dgorder,norder
+    INTEGER, INTENT(IN) :: nex,ney,dgorder,norder,gqOrder
 	REAL(KIND=8), DIMENSION(1:nex,1:ney,0:norder,0:norder), INTENT(INOUT) :: Ain
     REAL(KIND=8), DIMENSION(0:norder,0:dgorder), INTENT(IN) :: lagGaussVal
     REAL(KIND=8), DIMENSION(0:dgorder), INTENT(IN) :: gllWeights
@@ -307,13 +309,9 @@ SUBROUTINE polyMod(Ain,gllWeights,lagGaussVal,nex,ney,dgorder,norder)
             ! 3) Gauss Quad Nodes x GLL Quad Nodes
             valMin = HUGE(1D0) ! Arbitrary initial value for valMin
 
-!gllOnly = .FALSE.
-!IF(gllOnly) THEN
-!    GO TO 999
-!ENDIF
             ! First do Gauss x Gauss points
-            DO p=0,dgorder
-                DO q=0,dgorder
+            DO p=0,gqOrder
+                DO q=0,gqOrder
                     DO l=0,norder
                         tmpArray(l,:) = Ain(i,j,l,:)*lagGaussVal(l,p)*lagGaussVal(:,q)
                     ENDDO !l
@@ -321,23 +319,23 @@ SUBROUTINE polyMod(Ain,gllWeights,lagGaussVal,nex,ney,dgorder,norder)
                 ENDDO !q
             ENDDO !p
 
-            ! Next look at GLL x Gauss and Gauss x GLL at the same time
+            ! Next look at GLL x Gauss and Gauss x GLL 
             DO p=0,dgorder
-                DO q=0,dgorder
-                    valMin = MIN(valMin,SUM(Ain(i,j,p,:)*lagGaussVal(:,q)),SUM(Ain(i,j,:,q)*lagGaussVal(:,p)))
+                DO q=0,gqOrder
+                    valMin = MIN(valMin,SUM(Ain(i,j,p,:)*lagGaussVal(:,q)))
                 ENDDO !q
             ENDDO !p
 
-999 continue
+            DO p=0,gqOrder
+                DO q=0,dgorder
+                    valMin = MIN(valMin,SUM(Ain(i,j,:,q)*lagGaussVal(:,p)))
+                ENDDO !q
+            ENDDO !p
 
             ! (Optionally) look at GLL x GLL (the nodal coefficients themselves) to ensure that result will be PD where we evaluate it
             valMin = MIN(valMin,MINVAL(Ain(i,j,:,:)))
 
             ! Compute theta
-IF(elemAvg .lt. 0d0) THEN
-
-    write(*,*) 'WAT'
-ENDIF
             theta = MIN(abs(elemAvg)/(abs(valMin-elemAvg)),1D0)
 
             ! Rescale reconstructing polynomial for (i,j)th element

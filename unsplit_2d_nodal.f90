@@ -14,13 +14,15 @@ PROGRAM EXECUTE
     
     IMPLICIT NONE
 	INTEGER :: start_res,polyOrder
-	LOGICAL :: transient,DEBUG,doModalComparison
+	LOGICAL :: transient,DEBUG,doModalComparison,doTimeTest
 	REAL(KIND=8) :: muMAX
 
-    DEBUG = .TRUE.
+    DEBUG = .FALSE.
     doModalComparison = .FALSE.
+    doTimeTest = .FALSE.
+
     polyOrder = 4
-	start_res = 8
+	start_res = 12
 
 !	write(*,*) '======'
 !	write(*,*) 'TEST 0: Uniform field, deformation flow'
@@ -31,10 +33,10 @@ PROGRAM EXECUTE
 !	write(*,*) '======'
 !	write(*,*) 'TEST 1: Uniform advection (u=v=1)'
 !	write(*,*) '======'
-	transient = .FALSE.
-    muMAX = 0.6850D0
+!	transient = .FALSE.
+!    muMAX = 0.6850D0
 !	CALL test2d_nodal(1,start_res,start_res,2,4,1,muMAX) !1D0/(2D0*4D0-1D0) !0.3D0/sqrt(2d0)
- !  CALL test2d_nodal(10,start_res,start_res,2,1,-1,0.970D0) !0.970D0
+!   CALL test2d_nodal(10,start_res,start_res,2,1,-1,0.970D0) !0.970D0
 !   CALL test2d_nodal(10,start_res,start_res,2,2,40,0.500D0) !0.970D0
 
 !	write(*,*) '======'
@@ -42,18 +44,17 @@ PROGRAM EXECUTE
 !	write(*,*) '======'
 !	transient = .TRUE.
 !    muMAX = 0.860D0
+    muMAX = 0.860D0
 !    write(*,*) 'muMAX=',muMAX
-!	CALL test2d_nodal(6,start_res,start_res,2,3,2,muMAX) !1D0/(2D0*4D0-1D0)
+!	CALL test2d_nodal(6,start_res,start_res,2,2,1,muMAX) !1D0/(2D0*4D0-1D0)
 
 	write(*,*) '======'
 	write(*,*) 'TEST 3: Standard cosbell deformation'
 	write(*,*) '======'
 	transient = .TRUE.
-!    muMAX = 0.860D0
-    muMAX = 0.860D0/2D0
-    start_res = 8
+    muMAX = 0.830D0
     write(*,*) 'muMAX=',muMAX
-	CALL test2d_nodal(5,start_res,start_res,2,3,2,muMAX) !1D0/(2D0*4D0-1D0)
+	CALL test2d_nodal(5,start_res,start_res,2,4,2,muMAX) !1D0/(2D0*4D0-1D0)
 
 !	write(*,*) '======'
 !	write(*,*) 'TEST 4: Solid body rotation of cylinder'
@@ -90,7 +91,7 @@ CONTAINS
 	    REAL(KIND=8), DIMENSION(nlevel) :: e1, e2, ei
 		REAL(KIND=8) :: cnvg1, cnvg2, cnvgi,cons
 		INTEGER :: nmethod, nmethod_final,imethod,ierr,nstep,nout
-		INTEGER :: dgorder, norder,p
+		INTEGER :: dgorder,norder,p,gqOrder
 
 		LOGICAL :: dozshulimit
 
@@ -132,27 +133,28 @@ CONTAINS
 				  outdir = 'ndgunlim/'
 				  norder = polyOrder
 				  dgorder = norder !2*(norder+1)
+                  gqOrder = 1
 				  WRITE(*,*) 'N=',norder,'Uses a total of',(norder+1)**2,'Lagrange basis polynomials'
 				CASE(2)
 				  WRITE(*,*) '2D Nodal, Unsplit, Zhang and Shu Limiting'
 				  dozshulimit = .TRUE.
 				  outdir = 'ndgzhshu/'
 				  norder = polyOrder
-				  dgorder = norder
+                  dgorder = norder
+				  gqOrder = CEILING( (polyOrder+1)/2D0 )
 				  WRITE(*,*) 'N=',norder,'Uses a total of',(norder+1)**2,'Lagrange basis polynomials'
+                  WRITE(*,*) 'NOTE: Using',gqOrder+1,'points for gauss quadrature nodes'
 			END SELECT
 
 			! Initialize quadrature weights and nodes (only done once per call)
-			ALLOCATE(gllnodes(0:dgorder),gllweights(0:dgorder),gaussNodes(0:dgorder),gaussWeights(0:dgorder),&
+			ALLOCATE(gllnodes(0:dgorder),gllweights(0:dgorder),gaussNodes(0:gqOrder),gaussWeights(0:gqOrder),&
                     lagrangeDeriv(0:norder,0:dgorder),tmpArray(0:norder,0:norder),nodeSpacing(0:dgorder-1),&
-                    lagGaussVal(0:norder,0:dgorder),lambda(0:dgorder),STAT=ierr)
+                    lagGaussVal(0:norder,0:gqOrder),lambda(0:dgorder),STAT=ierr)
 
             CALL gllquad_nodes(dgorder,gllNodes)
             CALL gllquad_weights(dgorder,gllNodes,gllWeights)
-            CALL gaussquad_nodes(dgorder+1,gaussNodes)
-            CALL gaussquad_weights(dgorder+1,gaussNodes,gaussWeights)
-
-            write(*,*) minval(gaussWeights)
+            CALL gaussquad_nodes(gqOrder+1,gaussNodes)
+            CALL gaussquad_weights(gqOrder+1,gaussNodes,gaussWeights)
 
             nodeSpacing = gllNodes(1:dgorder)-gllNodes(0:dgorder-1)
 
@@ -170,7 +172,7 @@ CONTAINS
             ! Fill maxtris of basis polynomials evaluated at Gauss quadrature nodes (used in Zhang and Shu Limiter)
             CALL baryWeights(lambda,gllnodes,dgorder)
             DO i=0,norder
-                DO j=0,dgorder
+                DO j=0,gqOrder
                     lagGaussVal(i,j) = lagrange(gaussNodes(j),i,dgorder,gllNodes,lambda)
                 ENDDO !j
             ENDDO !i
@@ -182,6 +184,10 @@ CONTAINS
 
             write(*,*) 'Domain is: [',xEdge(1),',',xEdge(2),'].'
             write(*,*) 'Warning: Not all tests have been implemented for non-[0,1] square domain!'
+            IF(doTimeTest) THEN
+                write(*,*) 'Warning: doing timing tests overwrites number of outputs!'
+            ENDIF
+
 
 			DO p=1,nlevel
 				
@@ -260,18 +266,21 @@ CONTAINS
                     nstep = noutput*CEILING( (tfinal/maxcfl)*MAX(tmp_umax/dxm,tmp_vmax/dym)/DBLE(noutput) )
                     nout = noutput
                 ELSE IF(DEBUG .and. p.gt.1) THEN
-!                    write(*,*) 'Debugging..'
                     nstep = nstep*2
                 ELSE
                 		nstep = noutput*CEILING( (tfinal/maxcfl)*(maxval(sqrt(u0**2 + v0**2))/min(dxm,dym))/DBLE(noutput) )
                 		nout = noutput
                 ENDIF !noutput
 
+                IF(doTimeTest) THEN
+                    nout = 1 
+                    nstep = 600*nscale**(p-1)
+                ENDIF
+
 				dt = tfinal/DBLE(nstep)
                 calculatedMu = maxval(sqrt(u0**2 + v0**2))*dt/min(dxm,dym)
 !                calculatedMu = maxval(sqrt(u0**2 + v0**2))*dt/min(dxel,dyel)
                 write(*,*) 'mu used =',calculatedMu
-                !calculatedMu = (tmp_umax/dxm + tmp_vmax/dym)*dt
 
 
 				IF(p .eq. 1) THEN ! Set up netCDF file
@@ -291,8 +300,8 @@ CONTAINS
 
 !                    A0 = A
 CALL CPU_TIME(t1)
-                    CALL coeff_update(A,u0,v0,gllNodes,gllWeights,gaussNodes,lagrangeDeriv,time,dt,dxel,dyel,nex,ney,&
-                                      norder,dgorder,lagGaussVal,dozshulimit,transient)
+                    CALL coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,dyel,nex,ney,&
+                                      norder,dgorder,gqOrder,lagGaussVal,dozshulimit,transient)
 CALL CPU_TIME(t2)
 !write(*,*) 'Post-step time:',t2-t1
  !                   write(*,*) 'CHANGE IN A',maxval(abs(A-A0))
@@ -371,8 +380,10 @@ CALL CPU_TIME(t2)
 				ENDIF
 				DEALLOCATE(A,A0,x_elcent,y_elcent,xplot,yplot,u0,v0,tmpErr,xQuad,yQuad,C,C0,STAT=ierr)
 			ENDDO
+        		DEALLOCATE(gllnodes,gllweights,gaussnodes,gaussweights,lagrangeDeriv,nodeSpacing,lagGaussVal,lambda, &
+                       xiplot,etaplot,tmpArray, tmpErr, STAT=ierr)
 		ENDDO
-		DEALLOCATE(gllnodes,gllweights,gaussnodes,gaussweights,xiplot,etaplot,tmpArray, tmpErr, STAT=ierr)
+
 
 990    format(2i6,3e12.4,3f5.2,3e12.4,f8.2,i8,f8.2)
 
@@ -569,7 +580,7 @@ CALL CPU_TIME(t2)
         elseif(ntest .eq. 11) then
             tfinal = 3D0*2D0*PI
         elseif(ntest .eq. 6) then
-            tfinal = 5D0*tfinal
+            tfinal = 1D0*tfinal
         endif
 
     END SUBROUTINE init2d
