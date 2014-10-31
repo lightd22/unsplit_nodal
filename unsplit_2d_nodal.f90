@@ -15,28 +15,66 @@ PROGRAM EXECUTE
     IMPLICIT NONE
 	INTEGER :: startRes,polyOrder,whichTest,testEnd,nTest,ierr
     INTEGER, ALLOCATABLE, DIMENSION(:) :: testsVec
-	LOGICAL :: transient,DEBUG,doModalComparison,doTimeTest
+	LOGICAL :: transient,DEBUG,doModalComparison,doTimeTest,doZSMaxCFL
 	REAL(KIND=8) :: muMAX
 
     DEBUG = .FALSE.
     doModalComparison = .FALSE.
     doTimeTest = .FALSE.
+    doZSMaxCFL = .TRUE.
 
-    polyOrder = 4
+    polyOrder = 3
 	startRes = 12
     testEnd = 1
 
     ALLOCATE(testsVec(1:testEnd),STAT=ierr)
-    testsVec = (/ 5 /)
+    testsVec = (/ 1 /)
 
-    muMAX = 0.830D0
-    write(*,'(A7,F7.4)') 'muMAX=',muMAX
+    IF(doZSMaxCFL) THEN
+        SELECT CASE(polyOrder)
+            CASE(2)
+!                muMAX = 0.450D0
+                muMAX  = 0.167D0
+            CASE(3)
+!                muMAX = 0.255D0
+                muMAX  = 0.167D0
+!                 muMAX  = 0.083D0
+            CASE(4)
+!                muMAX = 0.168D0
+                muMAX = 0.083D0
+!                muMAX  = 0.050D0
+            CASE(5)
+!                muMAX = 0.120D0
+                muMAX = 0.083D0
+!                muMAX  = 0.033D0
+            CASE(6)
+                muMAX = 0.0910D0
+!                muMAX  = 0.024D0
+            CASE(7)
+                muMAX = 0.0725D0
+!                muMAX  = 0.018D0
+            CASE(8)
+                muMAX = 0.0589D0
+!                muMAX  = 0.014D0
+            CASE(9)
+                muMAX = 0.0490D0
+!                muMAX  = 0.011D0
+        END SELECT
+    ELSE
+        muMAX = 0.707D0
+    ENDIF ! doZSMaxCFL
+    muMAX = muMAX*0.9
+
+    write(*,*) '======================================================'
+    write(*,*) '             BEGINNING RUN OF NODAL TESTS             '
+    write(*,'(A27,F7.4)') 'muMAX=',muMAX
+    write(*,*) '======================================================'
 
     DO nTest=1,testEnd
         whichTest = testsVec(nTest)
         write(*,*) '======'
         SELECT CASE(whichTest)
-            CASE(0)
+            CASE(100)
                 	write(*,*) 'TEST 0: Consistency test'
                 	transient = .TRUE.
             CASE(1)
@@ -57,66 +95,13 @@ PROGRAM EXECUTE
             CASE(7)
                 	write(*,*) 'TEST 7: Square wave deformation'
                 transient = .TRUE.
+            CASE(8)
+                write(*,*) 'TEST 8: Diagonal Adv. (u=v=1) of Gaussian Bump'
         END SELECT
         	write(*,*) '======'
-        	CALL test2d_nodal(whichTest,startRes,startRes,2,2,2,muMAX) !1D0/(2D0*4D0-1D0) !0.3D0/sqrt(2d0)
+        	CALL test2d_nodal(whichTest,startRes,startRes,2,3,2,muMAX) !1D0/(2D0*4D0-1D0) !0.3D0/sqrt(2d0)
     ENDDO
     DEALLOCATE(testsVec,STAT=ierr)
-
-
-!	write(*,*) '======'
-!	write(*,*) 'TEST 0: Uniform field, deformation flow'
-!	write(*,*) '======'
-!	transient = .TRUE.
-!	CALL test2d_nodal(100,start_res,start_res,2,3,20,0.01D0)
-
-!	write(*,*) '======'
-!	write(*,*) 'TEST 1: Uniform advection (u=v=1)'
-!	write(*,*) '======'
-!	transient = .FALSE.
-!    muMAX = 0.6850D0
-!	CALL test2d_nodal(1,start_res,start_res,2,4,1,muMAX) !1D0/(2D0*4D0-1D0) !0.3D0/sqrt(2d0)
-!   CALL test2d_nodal(10,start_res,start_res,2,1,-1,0.970D0) !0.970D0
-!   CALL test2d_nodal(10,start_res,start_res,2,2,40,0.500D0) !0.970D0
-
-!	write(*,*) '======'
-!	write(*,*) 'TEST 2: Smooth cosbell deformation'
-!	write(*,*) '======'
-!	transient = .TRUE.
-!    muMAX = 0.860D0
-!    write(*,*) 'muMAX=',muMAX
-!	CALL test2d_nodal(6,start_res,start_res,2,2,1,muMAX) !1D0/(2D0*4D0-1D0)
-
-!	write(*,*) '======'
-!	write(*,*) 'TEST 3: Standard cosbell deformation'
-!	write(*,*) '======'
-!	transient = .TRUE.
- !   muMAX = 0.830D0
-  !  write(*,*) 'muMAX=',muMAX
-	!CALL test2d_nodal(5,start_res,start_res,2,4,2,muMAX) !1D0/(2D0*4D0-1D0)
-
-!	write(*,*) '======'
-!	write(*,*) 'TEST 4: Solid body rotation of cylinder'
-!	write(*,*) '======'
-!	transient = .FALSE.
-!    start_res = 30
-!	CALL test2d_nodal(2,start_res,start_res,2,3,20,0.75D0) !0.08D0
-
-!	write(*,*) '======'
-!	write(*,*) 'TEST 5: Square wave deformation'
-!	write(*,*) '======'
-!	transient = .TRUE.
-!	CALL test2d_nodal(7,start_res,start_res,2,3,20,1D0/(2D0*4D0-1D0)) !1D0/(2D0*4D0-1D0)
-
-!	write(*,*) '======'
-!	write(*,*) 'TEST 6: Solid body rotation of cylinder (modified for frank)'
-!	write(*,*) '======'
-!	transient = .FALSE.
-!	CALL test2d_nodal(3,start_res,start_res,2,3,nout,0.758D0) !1D0/(2D0*4D0-1D0)
-!    muMAX = 0.5364D0!0.759D0/sqrt(2D0)
-!    muMAX = 1.05D0!0.759D0/sqrt(2D0)
-!	CALL test2d_nodal(11,start_res,start_res,2,3,50,muMAX)
-
 
 CONTAINS
 	SUBROUTINE test2d_nodal(ntest,nex0,ney0,nscale,nlevel,noutput,maxcfl)
@@ -130,19 +115,19 @@ CONTAINS
 	    REAL(KIND=8), DIMENSION(nlevel) :: e1, e2, ei
 		REAL(KIND=8) :: cnvg1, cnvg2, cnvgi,cons
 		INTEGER :: nmethod, nmethod_final,imethod,ierr,nstep,nout
-		INTEGER :: dgorder,norder,p,gqOrder
+		INTEGER :: dgorder,norder,p,gqOrder,nZSNodes
 
-		LOGICAL :: dozshulimit
+		LOGICAL :: dozshulimit,doStrangSplit
 
 		CHARACTER(len=40) :: cdf_out
 
 		INTEGER :: nex,ney,nxiplot,netaplot
 		REAL(KIND=8) :: dxel,dyel,tfinal, tmp_umax, tmp_vmax, dxm, dym,dt, time,calculatedMu
         REAL(KIND=8), DIMENSION(1:2) :: xEdge,yEdge
-		REAL(KIND=8), ALLOCATABLE, DIMENSION(:,:) :: Leg,lagrangeDeriv,lagGaussVal,C0,C,tmpArray,tmpErr
+		REAL(KIND=8), ALLOCATABLE, DIMENSION(:,:) :: Leg,lagrangeDeriv,lagGaussVal,C0,C,tmpArray,tmpErr,lagValsZS
         REAL(KIND=8), ALLOCATABLE, DIMENSION(:,:) :: xQuad, yQuad
 		REAL(KIND=8), ALLOCATABLE, DIMENSION(:) :: gllNodes,gllWeights,gaussNodes,gaussWeights,x_elcent,y_elcent,&
-                                                   xplot,yplot,xiplot,etaplot,nodeSpacing,lambda
+                                                   xplot,yplot,xiplot,etaplot,nodeSpacing,lambda,quadZSNodes,quadZSWeights
 		REAL(KIND=8), ALLOCATABLE, DIMENSION(:,:,:,:) :: A,A0,& ! Coefficent array
 													     u0,v0 ! Velocites within each element  
                                                 
@@ -173,6 +158,7 @@ CONTAINS
 				  norder = polyOrder
 				  dgorder = norder !2*(norder+1)
                   gqOrder = 1
+                  nZSnodes = 1
 				  WRITE(*,*) 'N=',norder,'Uses a total of',(norder+1)**2,'Lagrange basis polynomials'
 				CASE(2)
 				  WRITE(*,*) '2D Nodal, Unsplit, Zhang and Shu Limiting'
@@ -180,9 +166,18 @@ CONTAINS
 				  outdir = 'ndgzhshu/'
 				  norder = polyOrder
                   dgorder = norder
-				  gqOrder = CEILING( (polyOrder+1)/2D0 )
-				  WRITE(*,*) 'N=',norder,'Uses a total of',(norder+1)**2,'Lagrange basis polynomials'
-                  WRITE(*,*) 'NOTE: Using',gqOrder+1,'points for gauss quadrature nodes'
+				  gqOrder = CEILING((polyOrder+1)/2D0 )-1
+                  nZSNodes = CEILING((polyOrder+3)/2D0 )-1
+				  WRITE(*,'(A,I1,A,I3,A)') '   N= ',norder,' Uses a total of',(norder+1)**2,'Lagrange basis polynomials'
+                  WRITE(*,'(A,I1,A)') '   NOTE: Using ',gqOrder+1,' points for gauss quadrature nodes'
+                  WRITE(*,'(A,I1,A)') '   NOTE: Using ',nZSNodes+1,' GLL nodes for positivity rescaling.'
+                CASE(3)
+                  write(*,*) '2D Nodal, Strang Split, No limiting'
+                  outdir = 'ndgsplun/'
+                  norder = polyOrder
+                  dgOrder = norder
+                  gqOrder = 1
+                  nZSnodes = 1
 			END SELECT
 
 			! Initialize quadrature weights and nodes (only done once per call)
@@ -190,8 +185,13 @@ CONTAINS
                     lagrangeDeriv(0:norder,0:dgorder),tmpArray(0:norder,0:norder),nodeSpacing(0:dgorder-1),&
                     lagGaussVal(0:norder,0:gqOrder),lambda(0:dgorder),STAT=ierr)
 
+            ALLOCATE(quadZSNodes(0:nZSNodes),quadZSWeights(0:nZSNodes),lagValsZS(0:norder,0:nZSNodes),STAT=ierr)
+
+        		! --  Compute Gauss-Lobatto quadrature nodes and weights
             CALL gllquad_nodes(dgorder,gllNodes)
             CALL gllquad_weights(dgorder,gllNodes,gllWeights)
+            CALL gllquad_nodes(nZSNodes,quadZSNodes)
+            	CALL gllquad_weights(nZSNodes,quadZSNodes,quadZSWeights)
             CALL gaussquad_nodes(gqOrder+1,gaussNodes)
             CALL gaussquad_weights(gqOrder+1,gaussNodes,gaussWeights)
 
@@ -216,6 +216,14 @@ CONTAINS
                 ENDDO !j
             ENDDO !i
 
+            lagValsZS = 0D0
+            ! -- Evaluate Basis polynomials at quad nodes for Zhang & Shu positivity limiting (edge nodes fixed at -1 and +1)
+            DO i=0,norder
+                DO j=0,nZSNodes
+                    lagValsZS(i,j) = lagrange(quadZSNodes(j),i,dgOrder,gllNodes,lambda)
+                ENDDO!l
+            ENDDO!k
+
             xEdge(1) = 0D0
             xEdge(2) = 1D0
             if(ntest .eq. 11 .or. ntest .eq. 10) xEdge(1) = -1D0
@@ -227,7 +235,6 @@ CONTAINS
                 write(*,*) 'Warning: doing timing tests overwrites number of outputs!'
             ENDIF
 
-
 			DO p=1,nlevel
 				
                 CALL CPU_TIME(t0)
@@ -236,7 +243,6 @@ CONTAINS
 				ney = ney0*nscale**(p-1)
 				dxel = (xEdge(2)-xEdge(1))/DBLE(nex)
 				dyel = (yEdge(2)-yEdge(1))/DBLE(ney)
-
 
 				ALLOCATE(x_elcent(1:nex),y_elcent(1:ney),A(1:nex,1:ney,0:norder,0:norder),A0(1:nex,1:ney,0:norder,0:norder),&
                          u0(1:nex,1:ney,0:dgorder,0:dgorder), v0(1:nex,1:ney,0:dgorder,0:dgorder), &
@@ -287,7 +293,7 @@ CONTAINS
                 ENDDO !i
 
 				! Set up timestep
-                IF(doModalComparison) THEN
+                IF(doModalComparison .or. doZSMaxCFL) THEN
                     dxm = dxel
                     dym = dyel
                 ELSE
@@ -304,6 +310,9 @@ CONTAINS
                 ELSE IF(doModalComparison) THEN
                     nstep = noutput*CEILING( (tfinal/maxcfl)*MAX(tmp_umax/dxm,tmp_vmax/dym)/DBLE(noutput) )
                     nout = noutput
+                ELSE IF(doZSMaxCFL) THEN
+                    nstep = noutput*CEILING( (tfinal/maxcfl)*(tmp_umax/dxm + tmp_vmax/dym)/DBLE(noutput) )
+                    nout = noutput
                 ELSE IF(DEBUG .and. p.gt.1) THEN
                     nstep = nstep*2
                 ELSE
@@ -313,13 +322,14 @@ CONTAINS
 
                 IF(doTimeTest) THEN
                     nout = 1 
-                    nstep = 600*nscale**(p-1)
+                    nstep = 800*nscale**(p-1)
                 ENDIF
 
 				dt = tfinal/DBLE(nstep)
                 calculatedMu = maxval(sqrt(u0**2 + v0**2))*dt/min(dxm,dym)
 !                calculatedMu = maxval(sqrt(u0**2 + v0**2))*dt/min(dxel,dyel)
                 write(*,*) 'mu used =',calculatedMu
+                write(*,*) 'mu2 used = ',maxval(sqrt(u0**2 + v0**2))*dt/min(dxel,dyel)
 
 
 				IF(p .eq. 1) THEN ! Set up netCDF file
@@ -340,7 +350,8 @@ CONTAINS
 !                    A0 = A
 CALL CPU_TIME(t1)
                     CALL coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,dyel,nex,ney,&
-                                      norder,dgorder,gqOrder,lagGaussVal,dozshulimit,transient)
+                                      norder,dgorder,gqOrder,lagGaussVal,nZSnodes,lagValsZS,&
+                                      dozshulimit,transient,doZSMaxCFL)
 CALL CPU_TIME(t2)
 !write(*,*) 'Post-step time:',t2-t1
  !                   write(*,*) 'CHANGE IN A',maxval(abs(A-A0))
@@ -421,6 +432,8 @@ CALL CPU_TIME(t2)
 			ENDDO
         		DEALLOCATE(gllnodes,gllweights,gaussnodes,gaussweights,lagrangeDeriv,nodeSpacing,lagGaussVal,lambda, &
                        xiplot,etaplot,tmpArray, tmpErr, STAT=ierr)
+            DEALLOCATE(quadZSNodes,quadZSWeights,lagValsZS,STAT=ierr)
+
 		ENDDO
 
 
@@ -481,7 +494,7 @@ CALL CPU_TIME(t2)
 
         ! Fill streamfunction array
         SELECT CASE(ntest)
-            CASE(1,10) ! uniform velocity u = v = 1
+            CASE(1,8,10) ! uniform velocity u = v = 1
                 DO i=1,nex
                     DO j=1,ney
                         DO k=0,norder
@@ -544,19 +557,21 @@ CALL CPU_TIME(t2)
                 DO i=1,nex
                     DO j=1,ney
                         DO k=0,norder
-                            A(i,j,k,:) = DSIN(2D0*PI*xQuad(i,k))*DSIN(2D0*PI*yQuad(j,:))
+!                            A(i,j,k,:) = DSIN(2D0*PI*xQuad(i,k))*DSIN(2D0*PI*yQuad(j,:))
+                            A(i,j,k,:) = 1D0+DSIN(2D0*PI*xQuad(i,k))*DSIN(2D0*PI*yQuad(j,:))
                         ENDDO !k
                     ENDDO!j
                 ENDDO!i
 
             CASE(2) ! solid body rotation of a cylinder
                 cdf_out = 'dg2d_rot_cylinder.nc'
-                tfinal = 2D0*PI
+!                tfinal = 2D0*PI
+                tfinal = 1D0
                 A = 0D0
                 DO i=1,nex
                     DO j=1,ney
                         DO k=0,norder
-                            r(k,:) = SQRT((xQuad(i,k)-0.25d0)**2 + (yQuad(j,:)-0.5d0)**2)
+                            r(k,:) = SQRT((xQuad(i,k)-0.3d0)**2 + (yQuad(j,:)-0.3d0)**2)
                         ENDDO !k
                         WHERE(r .lt. 0.125D0)
                             A(i,j,:,:) = 1D0
@@ -610,6 +625,16 @@ CALL CPU_TIME(t2)
                         WHERE(r .lt. 1D0)                            
                             A(i,j,:,:) = (0.5d0*(1.d0 + DCOS(PI*r(:,:))))**3
                         END WHERE
+                    ENDDO !j
+                ENDDO !i
+            CASE(8) ! gaussian bump
+                cdf_out = 'dg2d_gauss_bump.nc'
+                tfinal = 1D0
+                DO i=1,nex
+                    DO j=1,ney
+                        DO k=0,norder
+                            A(i,j,k,:) = EXP(- 2*(xQuad(i,k)**2 + yQuad(j,:)**2 )/(8D0**2) )
+                        ENDDO !k
                     ENDDO !j
                 ENDDO !i
         END SELECT !ntest

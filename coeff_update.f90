@@ -10,7 +10,7 @@
 ! ==========================================
 
 SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,dyel,nex,ney,norder,dgorder,&
-                        gqOrder,lagGaussVal,dozshulimit,transient)
+                        gqOrder,lagGaussVal,nZSnodes,lagValsZS,dozshulimit,transient,doZSMaxCFL)
     IMPLICIT NONE
 
 	! External functions
@@ -18,13 +18,14 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,d
 	REAL(KIND=8), EXTERNAL :: vel_update ! Velocity update function
 
     ! Inputs
-    INTEGER, INTENT(IN) :: nex,ney,norder,dgorder,gqOrder
+    INTEGER, INTENT(IN) :: nex,ney,norder,dgorder,gqOrder,nZSnodes
     REAL(KIND=8), INTENT(IN) :: dxel,dyel,dt,time
     REAL(KIND=8), DIMENSION(0:dgorder), INTENT(IN) :: gllNodes,gllWeights
     REAL(KIND=8), DIMENSION(0:norder,0:dgorder), INTENT(IN) :: lagrangeDeriv
     REAL(KIND=8), DIMENSION(0:norder,0:gqOrder), INTENT(IN) :: lagGaussVal
+    REAL(KIND=8), DIMENSION(0:norder,0:nZSNodes), INTENT(IN) :: lagValsZS
 	REAL(KIND=8), DIMENSION(1:nex,1:ney,0:dgorder,0:dgorder), INTENT(IN) :: u0,v0
-    LOGICAL, INTENT(IN) :: dozshulimit,transient
+    LOGICAL, INTENT(IN) :: dozshulimit,transient,doZSMaxCFL
 
     ! Outputs
     REAL(KIND=8), DIMENSION(1:nex,1:ney,0:norder,0:norder), INTENT(INOUT) :: A
@@ -105,7 +106,7 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,d
 		END SELECT
 
         IF(dozshulimit) THEN ! Do polynomial rescaling from Zhang and Shu (2010) (if necessary)
-            CALL polyMod(A1,gllWeights,lagGaussVal,nex,ney,dgorder,norder,gqOrder)
+            CALL polyMod(A1,gllWeights,lagGaussVal,nZSnodes,lagValsZS,nex,ney,dgorder,norder,gqOrder,doZSMaxCFL)
         ENDIF
 
     ENDDO !stage
@@ -281,13 +282,15 @@ SUBROUTINE evalExpansion(quadVals,edgeValsNS,edgeValsEW,Ain,dgorder,norder,nex,n
 
 END SUBROUTINE evalExpansion
 
-SUBROUTINE polyMod(Ain,gllWeights,lagGaussVal,nex,ney,dgorder,norder,gqOrder)
+SUBROUTINE polyMod(Ain,gllWeights,lagGaussVal,nZSnodes,lagValsZS,nex,ney,dgorder,norder,gqOrder,doZSMaxCFL)
     IMPLICIT NONE
     ! Inputs
-    INTEGER, INTENT(IN) :: nex,ney,dgorder,norder,gqOrder
+    INTEGER, INTENT(IN) :: nex,ney,dgorder,norder,gqOrder,nZSnodes
 	REAL(KIND=8), DIMENSION(1:nex,1:ney,0:norder,0:norder), INTENT(INOUT) :: Ain
-    REAL(KIND=8), DIMENSION(0:norder,0:dgorder), INTENT(IN) :: lagGaussVal
+    REAL(KIND=8), DIMENSION(0:norder,0:gqorder), INTENT(IN) :: lagGaussVal
+    REAL(KIND=8), DIMENSION(0:norder,0:nZSnodes), INTENT(IN) :: lagValsZS
     REAL(KIND=8), DIMENSION(0:dgorder), INTENT(IN) :: gllWeights
+    LOGICAL, INTENT(IN) :: doZSMaxCFL
     ! Outputs
     ! Local variables
     LOGICAL gllOnly
@@ -307,33 +310,55 @@ SUBROUTINE polyMod(Ain,gllWeights,lagGaussVal,nex,ney,dgorder,norder,gqOrder)
             ! 1) Gauss Quadrature Nodes x Gauss Quadrature Nodes
             ! 2) GLL Quad Nodes x Gauss Quad Nodes
             ! 3) Gauss Quad Nodes x GLL Quad Nodes
-            valMin = HUGE(1D0) ! Arbitrary initial value for valMin
-
-            ! First do Gauss x Gauss points
-            DO p=0,gqOrder
-                DO q=0,gqOrder
-                    DO l=0,norder
-                        tmpArray(l,:) = Ain(i,j,l,:)*lagGaussVal(l,p)*lagGaussVal(:,q)
-                    ENDDO !l
-                        valMin = MIN(valMin,SUM(tmpArray))
-                ENDDO !q
-            ENDDO !p
-
-            ! Next look at GLL x Gauss and Gauss x GLL 
-            DO p=0,dgorder
-                DO q=0,gqOrder
-                    valMin = MIN(valMin,SUM(Ain(i,j,p,:)*lagGaussVal(:,q)))
-                ENDDO !q
-            ENDDO !p
-
-            DO p=0,gqOrder
-                DO q=0,dgorder
-                    valMin = MIN(valMin,SUM(Ain(i,j,:,q)*lagGaussVal(:,p)))
-                ENDDO !q
-            ENDDO !p
+            valMin = 0D0 ! Arbitrary initial value for valMin
 
             ! (Optionally) look at GLL x GLL (the nodal coefficients themselves) to ensure that result will be PD where we evaluate it
             valMin = MIN(valMin,MINVAL(Ain(i,j,:,:)))
+
+            IF(doZSMaxCFL) THEN
+                ! First do Gauss x Gauss points
+                DO p=0,gqOrder
+                    DO q=0,gqOrder
+                        DO l=0,norder
+                            tmpArray(l,:) = Ain(i,j,l,:)*lagGaussVal(l,p)*lagGaussVal(:,q)
+                        ENDDO !l
+                            valMin = MIN(valMin,SUM(tmpArray))
+                    ENDDO !q
+                ENDDO !p
+
+                ! Next look at GLL x Gauss and Gauss x GLL 
+                tmpArray = 0d0
+                DO p=0,nZSnodes
+                    DO q=0,gqOrder
+                        DO l=0,nOrder
+                            tmpArray(l,:) = Ain(i,j,l,:)*lagValsZS(l,p)*lagGaussVal(:,q)
+                        ENDDO !l
+                            valMin = MIN(valMin,SUM(tmpArray))
+                    ENDDO !q
+                ENDDO !p
+
+                tmpArray = 0d0
+                DO p=0,nZSnodes
+                    DO q=0,gqOrder
+                        DO l=0,nOrder
+                            tmpArray(l,:) = Ain(i,j,l,:)*lagValsZS(:,p)*lagGaussVal(l,q)
+                        ENDDO !l
+                            valMin = MIN(valMin,SUM(tmpArray))
+                    ENDDO !q
+                ENDDO !p
+
+!                DO p=0,dgorder
+!                    DO q=0,gqOrder
+!                        valMin = MIN(valMin,SUM(Ain(i,j,p,:)*lagGaussVal(:,q)))
+!                    ENDDO !q
+!                ENDDO !p
+
+!                DO p=0,gqOrder
+!                    DO q=0,dgorder
+!                        valMin = MIN(valMin,SUM(Ain(i,j,:,q)*lagGaussVal(:,p)))
+!                    ENDDO !q
+!                ENDDO !p
+            ENDIF !doZSMaxCFL
 
             ! Compute theta
             theta = MIN(abs(elemAvg)/(abs(valMin-elemAvg)),1D0)
