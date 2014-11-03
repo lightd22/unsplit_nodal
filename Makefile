@@ -19,7 +19,7 @@ cPROCESSOR := $(shell uname -m)
 #  endif
 #endif
 
-SOURCES= nDGmod.f90 coeff_update.f90
+SOURCES= nDGmod.f90 coeff_update.f90 nDGsweep.f90
 OBJECTS=$(SOURCES:.f90=.o)
 
 all: $(SOURCES) test_noddg_2d

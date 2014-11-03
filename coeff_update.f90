@@ -9,7 +9,7 @@
 ! By: Devin Light ; April 2014
 ! ==========================================
 
-SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,dyel,nex,ney,norder,dgorder,&
+SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,dyel,nex,ney,norder,nQuadNodes,&
                         gqOrder,lagGaussVal,nZSnodes,lagValsZS,dozshulimit,transient,doZSMaxCFL)
     IMPLICIT NONE
 
@@ -18,13 +18,13 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,d
 	REAL(KIND=8), EXTERNAL :: vel_update ! Velocity update function
 
     ! Inputs
-    INTEGER, INTENT(IN) :: nex,ney,norder,dgorder,gqOrder,nZSnodes
+    INTEGER, INTENT(IN) :: nex,ney,norder,nQuadNodes,gqOrder,nZSnodes
     REAL(KIND=8), INTENT(IN) :: dxel,dyel,dt,time
-    REAL(KIND=8), DIMENSION(0:dgorder), INTENT(IN) :: gllNodes,gllWeights
-    REAL(KIND=8), DIMENSION(0:norder,0:dgorder), INTENT(IN) :: lagrangeDeriv
+    REAL(KIND=8), DIMENSION(0:nQuadNodes), INTENT(IN) :: gllNodes,gllWeights
+    REAL(KIND=8), DIMENSION(0:norder,0:nQuadNodes), INTENT(IN) :: lagrangeDeriv
     REAL(KIND=8), DIMENSION(0:norder,0:gqOrder), INTENT(IN) :: lagGaussVal
     REAL(KIND=8), DIMENSION(0:norder,0:nZSNodes), INTENT(IN) :: lagValsZS
-	REAL(KIND=8), DIMENSION(1:nex,1:ney,0:dgorder,0:dgorder), INTENT(IN) :: u0,v0
+	REAL(KIND=8), DIMENSION(1:nex,1:ney,0:nQuadNodes,0:nQuadNodes), INTENT(IN) :: u0,v0
     LOGICAL, INTENT(IN) :: dozshulimit,transient,doZSMaxCFL
 
     ! Outputs
@@ -34,12 +34,12 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,d
     INTEGER :: i,j,l,m,stage,k,whichElement
     REAL(KIND=8) :: coef1,sentFhat,sentGhat
     REAL(KIND=8), DIMENSION(1:nex,1:ney,0:norder,0:norder) :: A1,A2
-	REAL(KIND=8), DIMENSION(1:nex,1:ney,0:dgorder,0:dgorder) :: quadVals,u,v
-    REAL(KIND=8), DIMENSION(0:dgorder,0:dgorder) :: currElemQuad,currElemU,currElemV
-	REAL(KIND=8), DIMENSION(0:nex+1,1:ney,0:1,0:dgorder) :: edgeValsEW
-	REAL(KIND=8), DIMENSION(1:nex,0:ney+1,0:1,0:dgorder) :: edgeValsNS
-	REAL(KIND=8), DIMENSION(0:nex,1:ney,0:dgorder) :: Fhat
-	REAL(KIND=8), DIMENSION(1:nex,0:ney,0:dgorder) :: Ghat
+	REAL(KIND=8), DIMENSION(1:nex,1:ney,0:nQuadNodes,0:nQuadNodes) :: quadVals,u,v
+    REAL(KIND=8), DIMENSION(0:nQuadNodes,0:nQuadNodes) :: currElemQuad,currElemU,currElemV
+	REAL(KIND=8), DIMENSION(0:nex+1,1:ney,0:1,0:nQuadNodes) :: edgeValsEW
+	REAL(KIND=8), DIMENSION(1:nex,0:ney+1,0:1,0:nQuadNodes) :: edgeValsNS
+	REAL(KIND=8), DIMENSION(0:nex,1:ney,0:nQuadNodes) :: Fhat
+	REAL(KIND=8), DIMENSION(1:nex,0:ney,0:nQuadNodes) :: Ghat
     REAL(KIND=8) :: error
 
 
@@ -76,8 +76,8 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,d
         ENDIF
 
 	    ! Update fluxes
-	    CALL evalExpansion(quadVals,edgeValsNS,edgeValsEW,A1,dgorder,norder,nex,ney,bctype)
-	    CALL numFlux(Fhat,Ghat,u,v,edgeValsNS,edgeValsEW,dgorder,norder,nex,ney,bctype)
+	    CALL evalExpansion(quadVals,edgeValsNS,edgeValsEW,A1,nQuadNodes,norder,nex,ney,bctype)
+	    CALL numFlux(Fhat,Ghat,u,v,edgeValsNS,edgeValsEW,nQuadNodes,norder,nex,ney,bctype)
 
         ! Forward step of SSPRK3
         	DO i=1,nex
@@ -90,7 +90,7 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,d
             		DO m=0,norder
 	            		A2(i,j,l,m) = A1(i,j,l,m)+ &
 	        				coef1*dadt(i,j,l,m,currElemQuad,Fhat,Ghat,currElemU,currElemV,gllWeights,&
-                                   lagrangeDeriv,dxel,dyel,dgorder,norder,nex,ney)
+                                   lagrangeDeriv,dxel,dyel,nQuadNodes,norder,nex,ney)
 	            	ENDDO !m
 	        	ENDDO!l
             	ENDDO !j
@@ -106,7 +106,7 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,d
 		END SELECT
 
         IF(dozshulimit) THEN ! Do polynomial rescaling from Zhang and Shu (2010) (if necessary)
-            CALL polyMod(A1,gllWeights,lagGaussVal,nZSnodes,lagValsZS,nex,ney,dgorder,norder,gqOrder,doZSMaxCFL)
+            CALL polyMod(A1,gllWeights,lagGaussVal,nZSnodes,lagValsZS,nex,ney,nQuadNodes,norder,gqOrder,doZSMaxCFL)
         ENDIF
 
     ENDDO !stage
@@ -114,7 +114,7 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,d
 
 END SUBROUTINE coeff_update
 
-REAL(KIND=8) FUNCTION dadt(i,j,l,m,quadVals,Fhat,Ghat,uIn,vIn,gllWeight,lagrangeDeriv,dxel,dyel,dgorder,norder,nex,ney)
+REAL(KIND=8) FUNCTION dadt(i,j,l,m,quadVals,Fhat,Ghat,uIn,vIn,gllWeight,lagrangeDeriv,dxel,dyel,nQuadNodes,norder,nex,ney)
 ! Computes dadt for element (i,j) for use in SSPRK3 update step
 ! Does this in 3 steps: dadt = 2*(A+B+C) where
 !	1) A+B = Int(Int( dyel*dPs/dxi*Pt*F+dxel*dPt/deta*Ps*G )) -- Interior contribution to change
@@ -123,13 +123,13 @@ REAL(KIND=8) FUNCTION dadt(i,j,l,m,quadVals,Fhat,Ghat,uIn,vIn,gllWeight,lagrange
 !
 	IMPLICIT NONE
 	! Inputs
-	INTEGER, INTENT(IN) :: i,j,l,m,dgorder,norder,nex,ney
+	INTEGER, INTENT(IN) :: i,j,l,m,nQuadNodes,norder,nex,ney
 	REAL(KIND=8), INTENT(IN) :: dxel,dyel
- 	REAL(KIND=8), DIMENSION(0:dgorder,0:dgorder), INTENT(IN) :: uIn,vIn,quadVals
-	REAL(KIND=8), DIMENSION(0:norder,0:dgorder), INTENT(IN) :: lagrangeDeriv
-	REAL(KIND=8), DIMENSION(0:dgorder), INTENT(IN) :: gllWeight
-	REAL(KIND=8), DIMENSION(0:nex,1:ney,0:dgorder), INTENT(IN) :: Fhat
-	REAL(KIND=8), DIMENSION(1:nex,0:ney,0:dgorder), INTENT(IN) :: Ghat
+ 	REAL(KIND=8), DIMENSION(0:nQuadNodes,0:nQuadNodes), INTENT(IN) :: uIn,vIn,quadVals
+	REAL(KIND=8), DIMENSION(0:norder,0:nQuadNodes), INTENT(IN) :: lagrangeDeriv
+	REAL(KIND=8), DIMENSION(0:nQuadNodes), INTENT(IN) :: gllWeight
+	REAL(KIND=8), DIMENSION(0:nex,1:ney,0:nQuadNodes), INTENT(IN) :: Fhat
+	REAL(KIND=8), DIMENSION(1:nex,0:ney,0:nQuadNodes), INTENT(IN) :: Ghat
 
 	! Local variables
 	REAL(KIND=8) :: A,B,C,D
@@ -140,7 +140,7 @@ REAL(KIND=8) FUNCTION dadt(i,j,l,m,quadVals,Fhat,Ghat,uIn,vIn,gllWeight,lagrange
 
 	! Step 2: Compute NS Flux Contribution
     C = 0D0
-    IF(m .eq. dgorder) THEN
+    IF(m .eq. nQuadNodes) THEN
         C = C + Ghat(i,j,l)
     ELSEIF( m .eq. 0) THEN
         C = C - Ghat(i,j-1,l)
@@ -150,7 +150,7 @@ REAL(KIND=8) FUNCTION dadt(i,j,l,m,quadVals,Fhat,Ghat,uIn,vIn,gllWeight,lagrange
 
 	! Step 3: Compute EW Flux Contribution
     D = 0D0
-    IF(l .eq. dgorder) THEN
+    IF(l .eq. nQuadNodes) THEN
         D = D + Fhat(i,j,m)
     ELSEIF( l .eq. 0) THEN
         D = D - Fhat(i-1,j,m)
@@ -162,36 +162,36 @@ REAL(KIND=8) FUNCTION dadt(i,j,l,m,quadVals,Fhat,Ghat,uIn,vIn,gllWeight,lagrange
 
 END FUNCTION dadt
 
-SUBROUTINE numFlux(Fhat,Ghat,u,v,edgeValsNS,edgeValsEW,dgorder,norder,nex,ney,bctype)
+SUBROUTINE numFlux(Fhat,Ghat,u,v,edgeValsNS,edgeValsEW,nQuadNodes,norder,nex,ney,bctype)
 	IMPLICIT NONE
 	! Inputs
-	INTEGER, INTENT(IN) :: dgorder,norder,nex,ney,bctype
-    REAL(KIND=8), DIMENSION(1:nex,1:ney,0:dgorder,0:dgorder) :: u, v
-	REAL(KIND=8), DIMENSION(0:nex+1,1:ney,0:1,0:dgorder), INTENT(IN) :: edgeValsEW
-	REAL(KIND=8), DIMENSION(1:nex,0:ney+1,0:1,0:dgorder), INTENT(IN) :: edgeValsNS
+	INTEGER, INTENT(IN) :: nQuadNodes,norder,nex,ney,bctype
+    REAL(KIND=8), DIMENSION(1:nex,1:ney,0:nQuadNodes,0:nQuadNodes) :: u, v
+	REAL(KIND=8), DIMENSION(0:nex+1,1:ney,0:1,0:nQuadNodes), INTENT(IN) :: edgeValsEW
+	REAL(KIND=8), DIMENSION(1:nex,0:ney+1,0:1,0:nQuadNodes), INTENT(IN) :: edgeValsNS
 
 	! Outputs
-	REAL(KIND=8), DIMENSION(0:nex,1:ney,0:dgorder), INTENT(OUT) :: Fhat
-	REAL(KIND=8), DIMENSION(1:nex,0:ney,0:dgorder), INTENT(OUT) :: Ghat
+	REAL(KIND=8), DIMENSION(0:nex,1:ney,0:nQuadNodes), INTENT(OUT) :: Fhat
+	REAL(KIND=8), DIMENSION(1:nex,0:ney,0:nQuadNodes), INTENT(OUT) :: Ghat
 
 	! Local Variables
 	INTEGER :: i,j,k,l,m,s,t
-	REAL(KIND=8), DIMENSION(0:dgorder) :: u_tmp, v_tmp
+	REAL(KIND=8), DIMENSION(0:nQuadNodes) :: u_tmp, v_tmp
 	INTEGER :: which_el,which_sign
 
 	DO i=1,nex
 		DO j=1,ney
 	
-			u_tmp = u(i,j,dgorder,:) 
-			v_tmp = v(i,j,:,dgorder) 
+			u_tmp = u(i,j,nQuadNodes,:) 
+			v_tmp = v(i,j,:,nQuadNodes) 
 
-			DO k=0,dgorder	
-				! Compute numerical flux through North edges (Ghat) (There are dgorder+1 nodes per element)
+			DO k=0,nQuadNodes	
+				! Compute numerical flux through North edges (Ghat) (There are nQuadNodes+1 nodes per element)
 				which_sign = 1-(1-INT(SIGN(1D0,v_tmp(k))) )/2
 				which_el = j + (1-INT(SIGN(1D0,v_tmp(k))) )/2
 				Ghat(i,j,k) = v_tmp(k)*edgeValsNS(i,which_el,which_sign,k)
 
-				! Compute numerical flux through East edges (Fhat) (There are dgorder+1 nodes per element)
+				! Compute numerical flux through East edges (Fhat) (There are nQuadNodes+1 nodes per element)
 				which_sign = 1-(1-INT(SIGN(1D0,u_tmp(k))) )/2
 				which_el = i + (1-INT(SIGN(1D0,u_tmp(k))) )/2
 				Fhat(i,j,k) = u_tmp(k)*edgeValsEW(which_el,j,which_sign,k)
@@ -202,8 +202,8 @@ SUBROUTINE numFlux(Fhat,Ghat,u,v,edgeValsNS,edgeValsEW,dgorder,norder,nex,ney,bc
     j = 0
     DO i=1,nex
 			v_tmp = v(i,j+1,:,0) 
-			DO k=0,dgorder	
-			! Compute numerical flux through North edges (Ghat) (There are dgorder+1 nodes per element)
+			DO k=0,nQuadNodes	
+			! Compute numerical flux through North edges (Ghat) (There are nQuadNodes+1 nodes per element)
 			which_sign = 1-(1-INT(SIGN(1D0,v_tmp(k))) )/2
 			which_el = j + (1-INT(SIGN(1D0,v_tmp(k))) )/2
         		Ghat(i,j,k) = v_tmp(k)*edgeValsNS(i,which_el,which_sign,k)
@@ -213,8 +213,8 @@ SUBROUTINE numFlux(Fhat,Ghat,u,v,edgeValsNS,edgeValsEW,dgorder,norder,nex,ney,bc
     i=0
     DO j=1,ney
         u_tmp = u(i+1,j,0,:) 
-        DO k=0,dgorder
-			! Compute numerical flux through East edges (Fhat) (There are dgorder+1 nodes per element)
+        DO k=0,nQuadNodes
+			! Compute numerical flux through East edges (Fhat) (There are nQuadNodes+1 nodes per element)
 			which_sign = 1-(1-INT(SIGN(1D0,u_tmp(k))) )/2
 			which_el = i + (1-INT(SIGN(1D0,u_tmp(k))) )/2
 			Fhat(i,j,k) = u_tmp(k)*edgeValsEW(which_el,j,which_sign,k)
@@ -233,17 +233,17 @@ SUBROUTINE numFlux(Fhat,Ghat,u,v,edgeValsNS,edgeValsEW,dgorder,norder,nex,ney,bc
 
 END SUBROUTINE numFlux
 
-SUBROUTINE evalExpansion(quadVals,edgeValsNS,edgeValsEW,Ain,dgorder,norder,nex,ney,bctype)
+SUBROUTINE evalExpansion(quadVals,edgeValsNS,edgeValsEW,Ain,nQuadNodes,norder,nex,ney,bctype)
 ! Evaluate current expansion at interior quadrature locations and quadrature locations along EW and NS edges of each element
 	IMPLICIT NONE
 	! Inputs
-	INTEGER, INTENT(IN) :: dgorder,norder,nex,ney,bctype
+	INTEGER, INTENT(IN) :: nQuadNodes,norder,nex,ney,bctype
 	REAL(KIND=8), DIMENSION(1:nex,1:ney,0:norder,0:norder), INTENT(IN) :: Ain
 
 	! Outputs
-	REAL(KIND=8), DIMENSION(1:nex,1:ney,0:dgorder,0:dgorder), INTENT(OUT) :: quadVals
-	REAL(KIND=8), DIMENSION(0:nex+1,1:ney,0:1,0:dgorder), INTENT(OUT) :: edgeValsEW
-	REAL(KIND=8), DIMENSION(1:nex,0:ney+1,0:1,0:dgorder), INTENT(OUT) :: edgeValsNS
+	REAL(KIND=8), DIMENSION(1:nex,1:ney,0:nQuadNodes,0:nQuadNodes), INTENT(OUT) :: quadVals
+	REAL(KIND=8), DIMENSION(0:nex+1,1:ney,0:1,0:nQuadNodes), INTENT(OUT) :: edgeValsEW
+	REAL(KIND=8), DIMENSION(1:nex,0:ney+1,0:1,0:nQuadNodes), INTENT(OUT) :: edgeValsNS
 
 	! Local Variables
 	INTEGER :: i,j
@@ -282,14 +282,14 @@ SUBROUTINE evalExpansion(quadVals,edgeValsNS,edgeValsEW,Ain,dgorder,norder,nex,n
 
 END SUBROUTINE evalExpansion
 
-SUBROUTINE polyMod(Ain,gllWeights,lagGaussVal,nZSnodes,lagValsZS,nex,ney,dgorder,norder,gqOrder,doZSMaxCFL)
+SUBROUTINE polyMod(Ain,gllWeights,lagGaussVal,nZSnodes,lagValsZS,nex,ney,nQuadNodes,norder,gqOrder,doZSMaxCFL)
     IMPLICIT NONE
     ! Inputs
-    INTEGER, INTENT(IN) :: nex,ney,dgorder,norder,gqOrder,nZSnodes
+    INTEGER, INTENT(IN) :: nex,ney,nQuadNodes,norder,gqOrder,nZSnodes
 	REAL(KIND=8), DIMENSION(1:nex,1:ney,0:norder,0:norder), INTENT(INOUT) :: Ain
     REAL(KIND=8), DIMENSION(0:norder,0:gqorder), INTENT(IN) :: lagGaussVal
     REAL(KIND=8), DIMENSION(0:norder,0:nZSnodes), INTENT(IN) :: lagValsZS
-    REAL(KIND=8), DIMENSION(0:dgorder), INTENT(IN) :: gllWeights
+    REAL(KIND=8), DIMENSION(0:nQuadNodes), INTENT(IN) :: gllWeights
     LOGICAL, INTENT(IN) :: doZSMaxCFL
     ! Outputs
     ! Local variables
@@ -301,7 +301,7 @@ SUBROUTINE polyMod(Ain,gllWeights,lagGaussVal,nZSnodes,lagValsZS,nex,ney,dgorder
 	DO i=1,nex
 		DO j=1,ney
             ! Compute element average via quadrature
-            DO l=0,dgorder
+            DO l=0,nQuadNodes
                 tmpArray(l,:) = gllWeights(l)*gllWeights(:)*Ain(i,j,l,:)
             ENDDO!l
             elemAvg = 0.25D0*SUM(tmpArray)
@@ -347,14 +347,14 @@ SUBROUTINE polyMod(Ain,gllWeights,lagGaussVal,nZSnodes,lagValsZS,nex,ney,dgorder
                     ENDDO !q
                 ENDDO !p
 
-!                DO p=0,dgorder
+!                DO p=0,nQuadNodes
 !                    DO q=0,gqOrder
 !                        valMin = MIN(valMin,SUM(Ain(i,j,p,:)*lagGaussVal(:,q)))
 !                    ENDDO !q
 !                ENDDO !p
 
 !                DO p=0,gqOrder
-!                    DO q=0,dgorder
+!                    DO q=0,nQuadNodes
 !                        valMin = MIN(valMin,SUM(Ain(i,j,:,q)*lagGaussVal(:,p)))
 !                    ENDDO !q
 !                ENDDO !p

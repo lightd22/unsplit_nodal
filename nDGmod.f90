@@ -279,8 +279,6 @@ MODULE nDGmod
 
         END SUBROUTINE Dmat
 
-
-
         SUBROUTINE GEPP_INV (M,N,Minv)
         !
         ! Subroutine to perform the partial-pivoting Gaussian elimination.
