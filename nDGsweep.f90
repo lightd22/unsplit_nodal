@@ -3,7 +3,8 @@
 ! By: Devin Light Oct 2014
 ! -------------------------------------------------------------------------------
 
-SUBROUTINE nDGsweep(A,nelem,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u0,lagDeriv,time,dt,transient)
+SUBROUTINE nDGsweep(A,nelem,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u0,lagDeriv,time,dt,transient,&
+                    dozshulimit,nZSnodes,quadZSWeights,lagValsZS)
     IMPLICIT NONE
     INTEGER, PARAMETER :: DOUBLE = KIND(1D0) ! Specification of DOUBLE
 
@@ -12,12 +13,14 @@ SUBROUTINE nDGsweep(A,nelem,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u0,lagDer
 	REAL(KIND=8), EXTERNAL :: split_vel_update ! Velocity update function
 
     ! Inputs
-    INTEGER, INTENT(IN) :: nelem,nQuadNodes,nOrder
+    INTEGER, INTENT(IN) :: nelem,nQuadNodes,nOrder,nZSNodes
     REAL(KIND=DOUBLE), INTENT(IN) :: dxel,dt,time
     REAL(KIND=DOUBLE), DIMENSION(0:nQuadNodes), INTENT(IN):: gllNodes,gllWeights
     REAL(KIND=DOUBLE), DIMENSION(0:nOrder,0:nQuadNodes), INTENT(IN) :: lagDeriv
+    REAL(KIND=DOUBLE), DIMENSION(0:nZSNodes), INTENT(IN) :: quadZSWeights
+    REAL(KIND=DOUBLE), DIMENSION(0:nOrder,0:nZSNodes), INTENT(IN) :: lagValsZS
     REAL(KIND=DOUBLE), DIMENSION(1:nelem,0:nQuadNodes), INTENT(IN) :: u0
-    LOGICAL, INTENT(IN) :: transient
+    LOGICAL, INTENT(IN) :: transient,dozshulimit
 
     ! Outputs
     REAL(KIND=DOUBLE), DIMENSION(1:nelem,0:nOrder), INTENT(INOUT) :: A 
@@ -34,8 +37,16 @@ SUBROUTINE nDGsweep(A,nelem,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u0,lagDer
 
     AStar = A
     u = u0
+
+    IF(dozshulimit) THEN
+        IF(nZSnodes .eq. nQuadNodes) THEN
+            CALL split_polyMod(A,gllWeights,nelem,nOrder,nQuadNodes,lagValsZS,0)
+        ELSE
+            CALL split_polyMod(A,quadZSWeights,nelem,nOrder,nZSNodes,lagValsZS,1)
+        ENDIF
+    ENDIF
+
     ! Do SSPRK3 Update
-!    DO stage=1,3
     DO stage=1,3
         ! Update velocities (if necessary) 
         IF(transient) THEN
@@ -73,6 +84,14 @@ SUBROUTINE nDGsweep(A,nelem,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u0,lagDer
 		CASE(3)
 			AStar = A/3d0 + 2D0*AFwd/3D0
 		END SELECT
+
+        IF(dozshulimit) THEN
+            IF(nZSnodes .eq. nQuadNodes) THEN
+                CALL split_polyMod(Astar,gllWeights,nelem,nOrder,nQuadNodes,lagValsZS,0)
+            ELSE
+                CALL split_polyMod(Astar,quadZSWeights,nelem,nOrder,nZSNodes,lagValsZS,1)
+            ENDIF
+        ENDIF
        
     ENDDO !stage
     A = AStar
@@ -143,14 +162,15 @@ REAL(KIND=8) FUNCTION split_dadt(quadVals,flx,u,qWeights,lagDeriv,k,j,nelem,nNod
 
 END FUNCTION split_dadt
 
-SUBROUTINE split_polyMod(qIn,qNodes,qWeights,nelem,nNodes,nQuad,lagVals,stat)
+SUBROUTINE split_polyMod(AIn,qWeights,nelem,nOrder,nQuad,lagVals,stat)
 ! Rescales DG polynomial around element averages for positivity, based on Zhang and Shu (2010)
     IMPLICIT NONE
     ! Inputs
-    INTEGER, INTENT(IN) :: nelem,nNodes,nQuad
-    REAL(KIND=8), DIMENSION(0:nNodes,1:nelem), INTENT(INOUT) :: qIn
-    REAL(KIND=8), DIMENSION(0:nQuad), INTENT(IN) :: qWeights,qNodes
-    REAL(KIND=8), DIMENSION(0:nNodes,0:nQuad), INTENT(IN) :: lagVals
+    INTEGER, INTENT(IN) :: nelem,nOrder,nQuad
+!    REAL(KIND=8), DIMENSION(0:nOrder,1:nelem), INTENT(INOUT) :: AIn
+    REAL(KIND=8), DIMENSION(1:nelem,0:nOrder), INTENT(INOUT) :: AIn
+    REAL(KIND=8), DIMENSION(0:nQuad), INTENT(IN) :: qWeights
+    REAL(KIND=8), DIMENSION(0:nOrder,0:nQuad), INTENT(IN) :: lagVals
     ! Local Variables
     INTEGER :: j,l,stat
     REAL(KIND=8), DIMENSION(0:nQuad) :: qVals
@@ -165,42 +185,42 @@ SUBROUTINE split_polyMod(qIn,qNodes,qWeights,nelem,nNodes,nQuad,lagVals,stat)
             ! Note: This is not necessary if the quad nodes used are same nodes that the basis is interpolating --
             !       In this case the polynomial coefficients are the nodal values. Two exceptions are the edge
             !       values (-1 and 1) which are always part of a GLL integration. These may be read from coefficients directly
-            qVals(0) = qIn(0,j)
-            qVals(nQuad) = qIn(nNodes,j)
+            qVals(0) = AIn(j,0)
+            qVals(nQuad) = AIn(j,nOrder)
             DO l=1,nQuad-1
-                qVals(l) = SUM(qIn(:,j)*lagVals(:,l))
+                qVals(l) = SUM(AIn(j,:)*lagVals(:,l))
             ENDDO !l
     
             avgVal = 0.5D0*SUM( qWeights(:)*qVals(:) )
 !            valMin = MINVAL(qVals(:))-eps
-             valMin = MIN( MINVAL(qIn(1:nNodes-1,j)) , MINVAL(qVals(:)) ) - eps
+             valMin = MIN( MINVAL(AIn(j,1:nOrder-1)) , MINVAL(qVals(:)) ) - eps
 
             ! -- Compute rescale factor
             theta = MIN( abs(avgVal/(valMin-avgVal)),1D0 )
 
-            qIn(:,j) = theta*(qIn(:,j)-avgVal) + avgVal
+            AIn(j,:) = theta*(AIn(j,:)-avgVal) + avgVal
 
-            IF(avgVal .lt. 0D0) THEN
-                qVals(0) = qIn(0,j)
-                qVals(nQuad) = qIn(nNodes,j)
-                DO l=1,nQuad-1
-                    qVals(l) = SUM(qIn(:,j)*lagVals(:,l))
-                ENDDO !l
+!            IF(avgVal .lt. 0D0) THEN
+!                qVals(0) = AIn(j,0)
+!                qVals(nQuad) = AIn(j,nOrder)
+!                DO l=1,nQuad-1
+!                    qVals(l) = SUM(AIn(j,:)*lagVals(:,l))
+!                ENDDO !l
 
-                write(*,'(A,E10.4)') '   Element AVG in Z&S Limiter is negative!! Negative average value = ',avgVal
-                write(*,'(A,E10.4)') '   Minimum value = ',valMin
-                write(*,'(A,F5.3)') '   Rescaling factor theta = ',theta
-                write(*,'(A,E10.4)') '   New Average = ', 0.5D0*SUM( qWeights(:)*qVals(:) )
-                write(*,'(A,E10.4)') '   New minimum value = ', MINVAL(qVals(:))
+!                write(*,'(A,E10.4)') '   Element AVG in Z&S Limiter is negative!! Negative average value = ',avgVal
+!                write(*,'(A,E10.4)') '   Minimum value = ',valMin
+!                write(*,'(A,F5.3)') '   Rescaling factor theta = ',theta
+!                write(*,'(A,E10.4)') '   New Average = ', 0.5D0*SUM( qWeights(:)*qVals(:) )
+!                write(*,'(A,E10.4)') '   New minimum value = ', MINVAL(qVals(:))
 !                STOP
-            ENDIF
+!            ENDIF
 
         ENDDO !j
     ELSE
         DO j=1,nelem
             ! (Optional) Use nodes themselves to do limiting, rather than evaluating polynomial multiple times
-            avgVal = 0.5D0*SUM( qWeights(:)*qIn(:,j) )
-            valMin = MINVAL(qIn(:,j))-eps
+            avgVal = 0.5D0*SUM( qWeights(:)*AIn(j,:) )
+            valMin = MINVAL(AIn(j,:))-eps
 
             IF(avgVal .lt. 0D0) THEN
                 write(*,*) 'Element AVG in Z&S Limiter is negative!! Negative average value = ',avgVal
@@ -211,7 +231,7 @@ SUBROUTINE split_polyMod(qIn,qNodes,qWeights,nelem,nNodes,nQuad,lagVals,stat)
     !       theta = MIN( abs(avgVal/(valMin-avgVal)),abs((1D0-avgVal)/(valMax-avgVal)),1D0 )
 
             ! -- Rescale polynomial
-            qIn(:,j) = theta*(qIn(:,j)-avgVal) + avgVal
+            AIn(j,:) = theta*(AIn(j,:)-avgVal) + avgVal
         ENDDO !j
     ENDIF !stat
     

@@ -23,7 +23,7 @@ PROGRAM EXECUTE
     doTimeTest = .FALSE.
     doZSMaxCFL = .TRUE.
 
-    polyOrder = 3
+    polyOrder = 4
 	startRes = 12
     testEnd = 1
 
@@ -99,7 +99,7 @@ PROGRAM EXECUTE
                 write(*,*) 'TEST 8: Diagonal Adv. (u=v=1) of Gaussian Bump'
         END SELECT
         	write(*,*) '======'
-        	CALL test2d_nodal(whichTest,startRes,startRes,2,5,2,muMAX) !1D0/(2D0*4D0-1D0) !0.3D0/sqrt(2d0)
+        	CALL test2d_nodal(whichTest,startRes,startRes,2,4,2,muMAX) !1D0/(2D0*4D0-1D0) !0.3D0/sqrt(2d0)
     ENDDO
     DEALLOCATE(testsVec,STAT=ierr)
 
@@ -142,10 +142,12 @@ CONTAINS
 
 		if(nlevel.lt.1) STOP 'nlev should be at least 1 in test2d_modal'
 
-		nmethod_final = 2
+		nmethod_final = 4
 		tmp_method = 0
-		tmp_method(1) = 3
-        tmp_method(2) = 1
+		tmp_method(1) = 1
+        tmp_method(2) = 2
+        tmp_method(3) = 3
+        tmp_method(4) = 4
 
 		DO nmethod=1,nmethod_final
 			imethod = tmp_method(nmethod)
@@ -187,10 +189,13 @@ CONTAINS
                   write(*,*) '2D Nodal, Strang Split, Zhang and Shu Limiting'
                   dozshulimit = .TRUE.
                   doStrangSplit = .TRUE.
+                  outdir = 'ndgsplzs/'
                   nOrder = polyOrder
                   nQuadNodes = nOrder
                   gqOrder = 1
                   nZSNodes = CEILING((polyOrder+3)/2D0 )-1
+				  WRITE(*,*) 'N=',norder,'Uses a total of',(norder+1)**2,'Lagrange basis polynomials per element'
+                  WRITE(*,'(A,I1,A)') '   NOTE: Using ',nZSNodes+1,' GLL nodes for positivity rescaling.'
 			END SELECT
 
 			! Initialize quadrature weights and nodes (only done once per call)
@@ -367,7 +372,8 @@ CONTAINS
 
                         CALL CPU_TIME(t1)
                         CALL strangSplitUpdate(A,u0,v0,gllNodes,gllWeights,time,lagrangeDeriv,&
-                                     dt,dxel,dyel,nOrder,nQuadNodes,nex,ney,oddstep,dozshulimit,transient)
+                                     dt,dxel,dyel,nOrder,nQuadNodes,nex,ney,oddstep,transient,&
+                                     dozshulimit,nZSnodes,quadZSWeights,lagValsZS)
                         CALL CPU_TIME(t2)
                         time = time + dt
 
@@ -484,7 +490,8 @@ CONTAINS
 	END SUBROUTINE test2d_nodal
 
     SUBROUTINE strangSplitUpdate(A,u0,v0,gllNodes,gllWeights,time,lagrangeDeriv,&
-                                 dt,dxel,dyel,nOrder,nQuadNodes,nex,ney,oddstep,dozshulimit,transient)
+                                 dt,dxel,dyel,nOrder,nQuadNodes,nex,ney,oddstep,transient,&
+                                 dozshulimit,nZSnodes,quadZSWeights,lagValsZS)
 
     ! =====================================================================================================
     ! strangSplitUpdate is responsible for selecting which slice of subcell volumes is sent to mDGsweep for update to time
@@ -497,11 +504,13 @@ CONTAINS
 
         IMPLICIT NONE
         ! Inputs
-        INTEGER, INTENT(IN) :: nOrder,nQuadNodes,nex,ney
+        INTEGER, INTENT(IN) :: nOrder,nQuadNodes,nex,ney,nZSnodes
         REAL(KIND=8), INTENT(IN) :: dt,dxel,dyel,time
         REAL(KIND=8), DIMENSION(1:nex,1:ney,0:nQuadNodes,0:nQuadNodes), INTENT(IN) :: u0,v0
         REAL(KIND=8), DIMENSION(0:norder,0:nQuadNodes), INTENT(IN) :: lagrangeDeriv
         REAL(KIND=8), DIMENSION(0:nQuadNodes), INTENT(IN) :: gllNodes,gllWeights
+        REAL(KIND=8), DIMENSION(0:nZSnodes), INTENT(IN) :: quadZSWeights
+        REAL(KIND=8), DIMENSION(0:nOrder,0:nZSnodes), INTENT(IN) :: lagValsZS
         LOGICAL, INTENT(IN) :: oddstep,dozshulimit,transient
         ! Outputs
         REAL(KIND=8), DIMENSION(1:nex,1:ney,0:nOrder,0:nOrder), INTENT(INOUT) :: A
@@ -523,7 +532,8 @@ CONTAINS
                 A1dx(1:nex,:) = A(1:nex,whichEl,:,whichLvl)
                 u1dx(1:nex,:) = u0(1:nex,whichEl,:,whichLvl)
 
-                CALL nDGsweep(A1dx,nex,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u1dx,lagrangeDeriv,time,dt,transient)
+                CALL nDGsweep(A1dx,nex,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u1dx,lagrangeDeriv,time,dt,transient,&
+                              dozshulimit,nZSnodes,quadZSWeights,lagValsZS)
                 ! Update solution
                 A(1:nex,whichEl,:,whichLvl) = A1dx(1:nex,:)                
             ENDDO !i
@@ -535,7 +545,8 @@ CONTAINS
                 A1dy(1:ney,:) = A(whichEl,1:ney,whichLvl,:)
                 v1dy(1:ney,:) = v0(whichEl,1:ney,whichLvl,:)
 
-                CALL nDGsweep(A1dy,ney,dyel,nOrder,nQuadNodes,gllNodes,gllWeights,v1dy,lagrangeDeriv,time,dt,transient)
+                CALL nDGsweep(A1dy,ney,dyel,nOrder,nQuadNodes,gllNodes,gllWeights,v1dy,lagrangeDeriv,time,dt,transient,&
+                              dozshulimit,nZSnodes,quadZSWeights,lagValsZS)
                 ! Update solution
                 A(whichEl,1:ney,whichLvl,:) = A1dy(1:ney,:)                
             ENDDO !i
@@ -551,7 +562,8 @@ CONTAINS
                 A1dy(1:ney,:) = A(whichEl,1:ney,whichLvl,:)
                 v1dy(1:ney,:) = v0(whichEl,1:ney,whichLvl,:)
 
-                CALL nDGsweep(A1dy,ney,dyel,nOrder,nQuadNodes,gllNodes,gllWeights,v1dy,lagrangeDeriv,time,dt,transient)
+                CALL nDGsweep(A1dy,ney,dyel,nOrder,nQuadNodes,gllNodes,gllWeights,v1dy,lagrangeDeriv,time,dt,transient,&
+                              dozshulimit,nZSnodes,quadZSWeights,lagValsZS)
                 ! Update solution
                 A(whichEl,1:ney,whichLvl,:) = A1dy(1:ney,:)                
             ENDDO !i
@@ -563,7 +575,8 @@ CONTAINS
                 A1dx(1:nex,:) = A(1:nex,whichEl,:,whichLvl)
                 u1dx(1:nex,:) = u0(1:nex,whichEl,:,whichLvl)
 
-                CALL nDGsweep(A1dx,nex,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u1dx,lagrangeDeriv,time,dt,transient)
+                CALL nDGsweep(A1dx,nex,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u1dx,lagrangeDeriv,time,dt,transient,&
+                              dozshulimit,nZSnodes,quadZSWeights,lagValsZS)
                 ! Update solution
                 A(1:nex,whichEl,:,whichLvl) = A1dx(1:nex,:)                
             ENDDO !i
