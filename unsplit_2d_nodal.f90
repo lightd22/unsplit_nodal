@@ -1,4 +1,4 @@
-! ===================================== 
+! =====================================
 ! Unsplit 2D nodal algorithm for tracer transport
 ! Uses tensor product Lagrange polynomial basis to simulate 2D tracer transport equations with variable windspeeds
 !
@@ -11,20 +11,20 @@
 PROGRAM EXECUTE
     USE nDGmod
     USE netCDF
-    
+
     IMPLICIT NONE
-	INTEGER :: startRes,polyOrder,whichTest,testEnd,nTest,ierr
+    INTEGER :: startRes,polyOrder,whichTest,testEnd,nTest,ierr
     INTEGER, ALLOCATABLE, DIMENSION(:) :: testsVec
-	LOGICAL :: transient,DEBUG,doModalComparison,doTimeTest,doZSMaxCFL
-	REAL(KIND=8) :: muMAX
+    LOGICAL :: transient,DEBUG,doModalComparison,doTimeTest,doZSMaxCFL
+    REAL(KIND=8) :: muMAX
 
     DEBUG = .FALSE.
     doModalComparison = .FALSE.
     doTimeTest = .FALSE.
     doZSMaxCFL = .TRUE.
 
-    polyOrder = 4
-	startRes = 12
+    polyOrder = 3
+	  startRes = 15
     testEnd = 1
 
     ALLOCATE(testsVec(1:testEnd),STAT=ierr)
@@ -36,12 +36,12 @@ PROGRAM EXECUTE
 !                muMAX = 0.450D0
                 muMAX  = 0.167D0
             CASE(3)
-!                muMAX = 0.255D0
-                muMAX  = 0.167D0
+                muMAX = 0.255D0
+!                muMAX  = 0.167D0
 !                 muMAX  = 0.083D0
             CASE(4)
-!                muMAX = 0.168D0
-                muMAX = 0.083D0
+                muMAX = 0.168D0
+!                muMAX = 0.083D0
 !                muMAX  = 0.050D0
             CASE(5)
 !                muMAX = 0.120D0
@@ -62,8 +62,9 @@ PROGRAM EXECUTE
         END SELECT
     ELSE
         muMAX = 0.707D0
+!        muMAX = 1.0D0
     ENDIF ! doZSMaxCFL
-    muMAX = muMAX*0.9
+    muMAX = muMAX*0.9!*.707
 
     write(*,*) '======================================================'
     write(*,*) '             BEGINNING RUN OF NODAL TESTS             '
@@ -75,31 +76,32 @@ PROGRAM EXECUTE
         write(*,*) '======'
         SELECT CASE(whichTest)
             CASE(100)
-                	write(*,*) 'TEST 0: Consistency test'
-                	transient = .TRUE.
+              write(*,*) 'TEST 0: Consistency test'
+              transient = .TRUE.
             CASE(1)
-                	write(*,*) 'TEST 1: Uniform advection (u=v=1)'                
-                	transient = .FALSE.
+             	write(*,*) 'TEST 1: Uniform advection (u=v=1)'
+            	transient = .FALSE.
             CASE(2)
-                	write(*,*) 'TEST 2: Solid body rotation of cylinder'
-                transient = .FALSE.
+            	write(*,*) 'TEST 2: Solid body rotation of cylinder'
+              transient = .FALSE.
             CASE(3)
-                	write(*,*) 'TEST 3: Solid body rotation of cylinder (modified for frank)'
-                transient = .FALSE.
+            	write(*,*) 'TEST 3: Solid body rotation of cylinder (modified for frank)'
+              transient = .FALSE.
             CASE(5)
-                write(*,*) 'TEST 5: LeVeque Cosbell Deformation Test'
-                transient = .TRUE.
+              write(*,*) 'TEST 5: LeVeque Cosbell Deformation Test'
+              transient = .TRUE.
             CASE(6)
-                	write(*,*) 'TEST 6: LeVeque Smoother Cosbell Deformation Test'
-                	transient = .TRUE.
+            	write(*,*) 'TEST 6: LeVeque Smoother Cosbell Deformation Test'
+            	transient = .TRUE.
             CASE(7)
-                	write(*,*) 'TEST 7: Square wave deformation'
-                transient = .TRUE.
+            	write(*,*) 'TEST 7: Slotted cylinder deformation'
+              transient = .TRUE.
             CASE(8)
-                write(*,*) 'TEST 8: Diagonal Adv. (u=v=1) of Gaussian Bump'
+              write(*,*) 'TEST 8: Diagonal Adv. (u=v=1) of Gaussian Bump'
+              transient = .FALSE.
         END SELECT
         	write(*,*) '======'
-        	CALL test2d_nodal(whichTest,startRes,startRes,2,4,2,muMAX) !1D0/(2D0*4D0-1D0) !0.3D0/sqrt(2d0)
+        	CALL test2d_nodal(whichTest,startRes,startRes,2,3,2,muMAX) !1D0/(2D0*4D0-1D0) !0.3D0/sqrt(2d0)
     ENDDO
     DEALLOCATE(testsVec,STAT=ierr)
 
@@ -112,29 +114,29 @@ CONTAINS
 
 		! Local variables
 		INTEGER, DIMENSION(10) :: tmp_method
-	    REAL(KIND=8), DIMENSION(nlevel) :: e1, e2, ei
+    REAL(KIND=8), DIMENSION(nlevel) :: e1, e2, ei
 		REAL(KIND=8) :: cnvg1, cnvg2, cnvgi,cons
 		INTEGER :: nmethod, nmethod_final,imethod,ierr,nstep,nout
 		INTEGER :: nQuadNodes,norder,p,gqOrder,nZSNodes
 
-		LOGICAL :: dozshulimit,doStrangSplit,oddstep
+		LOGICAL :: dozshulimit,doStrangSplit,oddstep,dofctlimit
 
 		CHARACTER(len=40) :: cdf_out
 
 		INTEGER :: nex,ney,nxiplot,netaplot
 		REAL(KIND=8) :: dxel,dyel,tfinal, tmp_umax, tmp_vmax, dxm, dym,dt, time,calculatedMu
-        REAL(KIND=8), DIMENSION(1:2) :: xEdge,yEdge
+    REAL(KIND=8), DIMENSION(1:2) :: xEdge,yEdge
 		REAL(KIND=8), ALLOCATABLE, DIMENSION(:,:) :: Leg,lagrangeDeriv,lagGaussVal,C0,C,tmpArray,tmpErr,lagValsZS
-        REAL(KIND=8), ALLOCATABLE, DIMENSION(:,:) :: xQuad, yQuad
+    REAL(KIND=8), ALLOCATABLE, DIMENSION(:,:) :: xQuad, yQuad
 		REAL(KIND=8), ALLOCATABLE, DIMENSION(:) :: gllNodes,gllWeights,gaussNodes,gaussWeights,x_elcent,y_elcent,&
-                                                   xplot,yplot,xiplot,etaplot,nodeSpacing,lambda,quadZSNodes,quadZSWeights
+                                               xplot,yplot,xiplot,etaplot,nodeSpacing,lambda,quadZSNodes,quadZSWeights
 		REAL(KIND=8), ALLOCATABLE, DIMENSION(:,:,:,:) :: A,A0,& ! Coefficent array
-													     u0,v0 ! Velocites within each element  
-                                                
-														
+													     u0,v0 ! Velocites within each element
+
+
 		INTEGER :: i,j,l,m,k,s,t,n
 
-		CHARACTER(len=9) :: outdir
+		CHARACTER(len=10) :: outdir
 		REAL(KIND=4), DIMENSION(2) :: tstart,tend
 		REAL(KIND=4) :: t0,tf,t1,t2
 
@@ -142,61 +144,72 @@ CONTAINS
 
 		if(nlevel.lt.1) STOP 'nlev should be at least 1 in test2d_modal'
 
-		nmethod_final = 4
+		nmethod_final = 2
 		tmp_method = 0
-		tmp_method(1) = 1
-        tmp_method(2) = 2
-        tmp_method(3) = 3
-        tmp_method(4) = 4
+		tmp_method(1) = 3
+    tmp_method(2) = 5
+    !tmp_method(3) = 3
+    !tmp_method(4) = 4
+    !tmp_method(5) = 5
 
 		DO nmethod=1,nmethod_final
 			imethod = tmp_method(nmethod)
 
-            doZShuLimit = .FALSE.
-            doStrangSplit = .FALSE.
+      doZShuLimit = .FALSE.
+      doStrangSplit = .FALSE.
+      dofctlimit = .FALSE.
 
 			SELECT CASE(imethod)
 				CASE(1)
 				  WRITE(*,*) '2D Nodal, Unsplit, No limiting'
 				  dozshulimit = .FALSE.
-				  outdir = 'ndgunlim/'
+				  outdir = '_ndgunlim/'
 				  norder = polyOrder
 				  nQuadNodes = norder !2*(norder+1)
-                  gqOrder = 1
-                  nZSnodes = 1
-				  WRITE(*,*) 'N=',norder,'Uses a total of',(norder+1)**2,'Lagrange basis polynomials'
+          gqOrder = 1
+          nZSnodes = 1
 				CASE(2)
 				  WRITE(*,*) '2D Nodal, Unsplit, Zhang and Shu Limiting'
 				  dozshulimit = .TRUE.
-				  outdir = 'ndgzhshu/'
+				  outdir = '_ndgzhshu/'
 				  norder = polyOrder
-                  nQuadNodes = norder
+          nQuadNodes = norder
 				  gqOrder = CEILING((polyOrder+1)/2D0 )-1
-                  nZSNodes = CEILING((polyOrder+3)/2D0 )-1
-				  WRITE(*,'(A,I1,A,I3,A)') '   N= ',norder,' Uses a total of',(norder+1)**2,'Lagrange basis polynomials'
-                  WRITE(*,'(A,I1,A)') '   NOTE: Using ',gqOrder+1,' points for gauss quadrature nodes'
-                  WRITE(*,'(A,I1,A)') '   NOTE: Using ',nZSNodes+1,' GLL nodes for positivity rescaling.'
-                CASE(3)
-                  write(*,*) '2D Nodal, Strang Split, No limiting'
-                  doStrangSplit = .TRUE.
-                  outdir = 'ndgsplun/'
-                  norder = polyOrder
-                  nQuadNodes = norder
-                  gqOrder = 1
-                  nZSnodes = 1
-				  WRITE(*,*) 'N=',norder,'Uses a total of',(norder+1)**2,'Lagrange basis polynomials per element'
-                CASE(4)
-                  write(*,*) '2D Nodal, Strang Split, Zhang and Shu Limiting'
-                  dozshulimit = .TRUE.
-                  doStrangSplit = .TRUE.
-                  outdir = 'ndgsplzs/'
-                  nOrder = polyOrder
-                  nQuadNodes = nOrder
-                  gqOrder = 1
-                  nZSNodes = CEILING((polyOrder+3)/2D0 )-1
-				  WRITE(*,*) 'N=',norder,'Uses a total of',(norder+1)**2,'Lagrange basis polynomials per element'
-                  WRITE(*,'(A,I1,A)') '   NOTE: Using ',nZSNodes+1,' GLL nodes for positivity rescaling.'
+          nZSNodes = CEILING((polyOrder+3)/2D0 )-1
+          WRITE(*,'(A,I1,A)') '   NOTE: Using ',gqOrder+1,' points for gauss quadrature nodes'
+          WRITE(*,'(A,I1,A)') '   NOTE: Using ',nZSNodes+1,' GLL nodes for positivity rescaling.'
+        CASE(3)
+          write(*,*) '2D Nodal, Strang Split, No limiting'
+          doStrangSplit = .TRUE.
+          outdir = '_ndgsplun/'
+          norder = polyOrder
+          nQuadNodes = norder
+          gqOrder = 1
+          nZSnodes = 1
+        CASE(4)
+          write(*,*) '2D Nodal, Strang Split, Zhang and Shu Limiting'
+          dozshulimit = .TRUE.
+          doStrangSplit = .TRUE.
+          outdir = '_ndgsplzs/'
+          nOrder = polyOrder
+          nQuadNodes = nOrder
+          gqOrder = 1
+!         nZSNodes = CEILING((polyOrder+3)/2D0 )-1
+          nZSNodes = nQuadNodes
+          WRITE(*,'(A,I1,A)') '   NOTE: Using ',nZSNodes+1,' GLL nodes for positivity limiting.'
+        CASE(5)
+          WRITE(*,*) '2D Nodal, Strang Split, FCT + Positivity limiting'
+          dofctlimit = .TRUE.
+          doStrangSplit = .TRUE.
+          nOrder = polyOrder
+          nQuadNodes = nOrder
+          gqOrder = 1
+          nZSNodes = nQuadNodes
+          outdir = '_ndgsplfc/'
+          WRITE(*,'(A,I1,A)') '   NOTE: Using ',nZSNodes+1,' GLL nodes for positivity limiting.'
 			END SELECT
+      WRITE(*,*) '  N=',norder,'Uses a total of',(norder+1)**2,'Lagrange basis polynomials per element'
+      WRITE(*,*) 'Output directory is: ',outdir
 
 			! Initialize quadrature weights and nodes (only done once per call)
 			ALLOCATE(gllnodes(0:nQuadNodes),gllweights(0:nQuadNodes),gaussNodes(0:gqOrder),gaussWeights(0:gqOrder),&
@@ -209,7 +222,7 @@ CONTAINS
             CALL gllquad_nodes(nQuadNodes,gllNodes)
             CALL gllquad_weights(nQuadNodes,gllNodes,gllWeights)
             CALL gllquad_nodes(nZSNodes,quadZSNodes)
-            	CALL gllquad_weights(nZSNodes,quadZSNodes,quadZSWeights)
+            CALL gllquad_weights(nZSNodes,quadZSNodes,quadZSWeights)
             CALL gaussquad_nodes(gqOrder+1,gaussNodes)
             CALL gaussquad_weights(gqOrder+1,gaussNodes,gaussWeights)
 
@@ -223,38 +236,37 @@ CONTAINS
 			xiplot = gllNodes(:)
 			etaplot = gllNodes(:)
 
-            ! Fill matrix of basis derivatives at GLL nodes (note that this assumes lagrangeDeriv is square!)    
-            CALL Dmat(nQuadNodes,gllNodes,lagrangeDeriv)
+      ! Fill matrix of basis derivatives at GLL nodes (note that this assumes lagrangeDeriv is square!)
+      CALL Dmat(nQuadNodes,gllNodes,lagrangeDeriv)
 
-            ! Fill maxtris of basis polynomials evaluated at Gauss quadrature nodes (used in Zhang and Shu Limiter)
-            CALL baryWeights(lambda,gllnodes,nQuadNodes)
-            DO i=0,norder
-                DO j=0,gqOrder
-                    lagGaussVal(i,j) = lagrange(gaussNodes(j),i,nQuadNodes,gllNodes,lambda)
-                ENDDO !j
-            ENDDO !i
+      ! Fill maxtris of basis polynomials evaluated at Gauss quadrature nodes (used in Zhang and Shu Limiter)
+      CALL baryWeights(lambda,gllnodes,nQuadNodes)
+      DO i=0,norder
+          DO j=0,gqOrder
+              lagGaussVal(i,j) = lagrange(gaussNodes(j),i,nQuadNodes,gllNodes,lambda)
+          ENDDO !j
+      ENDDO !i
 
-            lagValsZS = 0D0
-            ! -- Evaluate Basis polynomials at quad nodes for Zhang & Shu positivity limiting (edge nodes fixed at -1 and +1)
-            DO i=0,norder
-                DO j=0,nZSNodes
-                    lagValsZS(i,j) = lagrange(quadZSNodes(j),i,nQuadNodes,gllNodes,lambda)
-                ENDDO!l
-            ENDDO!k
+      lagValsZS = 0D0
+      ! -- Evaluate Basis polynomials at quad nodes for Zhang & Shu positivity limiting (edge nodes fixed at -1 and +1)
+      DO i=0,norder
+          DO j=0,nZSNodes
+              lagValsZS(i,j) = lagrange(quadZSNodes(j),i,nQuadNodes,gllNodes,lambda)
+          ENDDO!l
+      ENDDO!k
 
-            xEdge(1) = 0D0
-            xEdge(2) = 1D0
-            if(ntest .eq. 11 .or. ntest .eq. 10) xEdge(1) = -1D0
-            yEdge = xEdge
+      xEdge(1) = 0D0
+      xEdge(2) = 1D0
+      if(ntest .eq. 11 .or. ntest .eq. 10) xEdge(1) = -1D0
+      yEdge = xEdge
 
-            write(*,*) 'Domain is: [',xEdge(1),',',xEdge(2),'].'
-            write(*,*) 'Warning: Not all tests have been implemented for non-[0,1] square domain!'
-            IF(doTimeTest .or. DEBUG) THEN
-                write(*,*) 'Warning: overwritting number of outputs!'
-            ENDIF
+      write(*,*) 'Domain: [',xEdge(1),',',xEdge(2),'].'
+      IF(doTimeTest .or. DEBUG) THEN
+          write(*,*) 'Warning: overwritting number of outputs!'
+      ENDIF
 
 			DO p=1,nlevel
-				
+
                 CALL CPU_TIME(t0)
 
 				nex = nex0*nscale**(p-1)
@@ -270,9 +282,9 @@ CONTAINS
 				! Elements are ordered row-wise within the domain
 
 				! A(i,j,l,m) : Coefficent array ; (i,j) = element, (l,m) = which Lagrange polynomial (q_ij = SUM(SUM(A(i,j,l,m)*L_l(xi)*L_m(eta))))
-                ! This is also the solution at the interpolating GLL points
+        ! This is also the solution at the interpolating GLL points
 				! u(i,j,l,m), v(i,j,l,m) : Horizontal/vertical vel. array ; (i,j) = element, (l,m) = horiz,vertical location
-				
+
 				! Initialize x- and y- grids and xi- and eta- plotting grids
 				x_elcent(1) = xEdge(1)+dxel/2D0
 				DO i=2,nex
@@ -292,71 +304,72 @@ CONTAINS
 					yplot(1+(i-1)*netaplot:i*netaplot) = y_elcent(i)+(dyel/2D0)*etaplot(:)
 				ENDDO !i
 
-				
-				! Initialize A, u, and v
-                CALL init2d(ntest,nex,ney,nQuadNodes,norder,A,u0,v0,x_elcent,y_elcent,gllNodes,gllWeights,xEdge,yEdge,cdf_out,&
-                            tfinal,xQuad,yQuad)
 
-                IF(DEBUG) THEN
-                    write(*,*) '-------- Warning DEBUG = .TRUE. --------'
-                ENDIF ! DEBUG
-                A0 = A
+				! Initialize A, u, and v
+        CALL init2d(ntest,nex,ney,nQuadNodes,norder,A,u0,v0,x_elcent,y_elcent,gllNodes,gllWeights,xEdge,yEdge,cdf_out,&
+                    tfinal,xQuad,yQuad)
+
+        IF(DEBUG) THEN
+            write(*,*) '-------- Warning DEBUG = .TRUE. --------'
+        ENDIF ! DEBUG
+        A0 = A
 				cdf_out = outdir // cdf_out
 
 				! Store element averages for conservation estimation
-                DO i=1,nex
-                    DO j=1,ney
-                        DO l=0,norder
-                            tmpArray(l,:) = gllWeights(l)*gllWeights(:)*A0(i,j,l,:)
-                        ENDDO!l
-                        C0(i,j) = 0.25D0*dxel*dyel*SUM(tmpArray)
-                    ENDDO !j
-                ENDDO !i
+        DO i=1,nex
+            DO j=1,ney
+                DO l=0,norder
+                    tmpArray(l,:) = gllWeights(l)*gllWeights(:)*A0(i,j,l,:)
+                ENDDO!l
+                C0(i,j) = 0.25D0*dxel*dyel*SUM(tmpArray)
+            ENDDO !j
+        ENDDO !i
 
 				! Set up timestep
-                IF(doModalComparison .or. doZSMaxCFL) THEN
-                    dxm = dxel
-                    dym = dyel
-                ELSE
-            			dxm = dxel*MINVAL(nodeSpacing)/2D0
-                    dym = dyel*MINVAL(nodeSpacing)/2D0
-                ENDIF
+        IF(doModalComparison .or. doZSMaxCFL) THEN
+            dxm = dxel
+            dym = dyel
+        ELSE
+    			dxm = dxel*MINVAL(nodeSpacing)/2D0
+            dym = dyel*MINVAL(nodeSpacing)/2D0
+        ENDIF
 
-    				tmp_umax = MAXVAL(abs(u0))
-    				tmp_vmax = MAXVAL(abs(v0))
+				tmp_umax = MAXVAL(abs(u0))
+				tmp_vmax = MAXVAL(abs(v0))
 
-                IF(noutput .eq. -1) THEN
-        				nstep = CEILING((tfinal/maxcfl)*(maxval(sqrt(u0**2 + v0**2))/min(dxm,dym)))
-        			    nout = nstep
-                ELSE IF(doModalComparison .or. doStrangSplit) THEN
-                    nstep = noutput*CEILING( (tfinal/maxcfl)*MAX(tmp_umax/dxm,tmp_vmax/dym)/DBLE(noutput) )
-                    nout = noutput
-                ELSE IF(doZSMaxCFL) THEN
-                    nstep = noutput*CEILING( (tfinal/maxcfl)*(tmp_umax/dxm + tmp_vmax/dym)/DBLE(noutput) )
-                    nout = noutput
-                ELSE
-                		nstep = noutput*CEILING( (tfinal/maxcfl)*(maxval(sqrt(u0**2 + v0**2))/min(dxm,dym))/DBLE(noutput) )
-                		nout = noutput
-                ENDIF !noutput
+        IF(noutput .eq. -1) THEN
+				nstep = CEILING((tfinal/maxcfl)*(maxval(sqrt(u0**2 + v0**2))/min(dxm,dym)))
+			    nout = nstep
+        ELSE IF(doModalComparison .or. doStrangSplit) THEN
+            nstep = noutput*CEILING( (tfinal/maxcfl)*MAX(tmp_umax/dxm,tmp_vmax/dym)/DBLE(noutput) )
+            nout = noutput
+        ELSE IF(doZSMaxCFL) THEN
+            nstep = noutput*CEILING( (tfinal/maxcfl)*(tmp_umax/dxm + tmp_vmax/dym)/DBLE(noutput) )
+            nout = noutput
+        ELSE
+        		nstep = noutput*CEILING( (tfinal/maxcfl)*(maxval(sqrt(u0**2 + v0**2))/min(dxm,dym))/DBLE(noutput) )
+        		nout = noutput
+        ENDIF !noutput
 
-                IF(doTimeTest .or. DEBUG) THEN
-                    nout = noutput
-                    nstep = 800*nscale**(p-1)
-                ENDIF
+        IF(doTimeTest .or. DEBUG) THEN
+            nout = noutput
+            nstep = 800*nscale**(p-1)
+        ENDIF
 
 				dt = tfinal/DBLE(nstep)
-                calculatedMu = maxval(sqrt(u0**2 + v0**2))*dt/min(dxm,dym)
+        calculatedMu = maxval(sqrt(u0**2 + v0**2))*dt/min(dxm,dym)
 !                calculatedMu = maxval(sqrt(u0**2 + v0**2))*dt/min(dxel,dyel)
-                write(*,'(A,E10.4,A,E10.4)') '  mu used = ',calculatedMu, &
-                                             '  mu2 used = ',maxval(sqrt(u0**2 + v0**2))*dt/min(dxel,dyel)
+        write(*,'(A,E10.4,A,E10.4,A,E10.4)') '  mu used = ',calculatedMu, &
+                                     '  mu2 used = ',maxval(sqrt(u0**2 + v0**2))*dt/min(dxel,dyel), &
+                                     '  dt/dx = ', dt/dxel
 
 				IF(p .eq. 1) THEN ! Set up netCDF file
-                    write(*,*) 'Maximum velocity: |u| = ',maxval(abs(sqrt(u0**2+v0**2)))
+          write(*,*) 'Maximum velocity: |u| = ',maxval(abs(u0)),maxval(abs(v0))!maxval(abs(sqrt(u0**2+v0**2)))
 					CALL output2d(A0,xplot,yplot,gllWeights,gllNodes,nex,ney,norder,nQuadNodes,nxiplot,netaplot,&
                                   tfinal,calculatedMu,cdf_out,nout,-1)
 				ENDIF
 
-                ! Set up variables for this value of p ; Write x, y, and initial conditions
+        ! Set up variables for this value of p ; Write x, y, and initial conditions
 				CALL output2d(A0,xplot,yplot,gllWeights,gllNodes,nex,ney,norder,nQuadNodes,nxiplot,netaplot,0D0,calculatedMu,cdf_out,p,0)
 
 				! Time integration
@@ -365,116 +378,117 @@ CONTAINS
 
 				time = 0D0
 
-                IF(doStrangSplit) THEN
-                    ! For Strang Split nodal methods, use strangSplitUpdate and nDGsweep to update nodal values
-                    oddstep = .TRUE.
-                    DO n=1,nstep
+        IF(doStrangSplit) THEN
+            ! For Strang Split nodal methods, use strangSplitUpdate and nDGsweep to update nodal values
+            oddstep = .TRUE.
+            DO n=1,nstep
 
-                        CALL CPU_TIME(t1)
-                        CALL strangSplitUpdate(A,u0,v0,gllNodes,gllWeights,time,lagrangeDeriv,&
-                                     dt,dxel,dyel,nOrder,nQuadNodes,nex,ney,oddstep,transient,&
-                                     dozshulimit,nZSnodes,quadZSWeights,lagValsZS)
-                        CALL CPU_TIME(t2)
-                        time = time + dt
+                CALL CPU_TIME(t1)
+                CALL strangSplitUpdate(A,u0,v0,gllNodes,gllWeights,time,lagrangeDeriv,&
+                             dt,dxel,dyel,nOrder,nQuadNodes,nex,ney,oddstep,transient,&
+                             dozshulimit,dofctlimit,nZSnodes,quadZSWeights,lagValsZS,n)
+                CALL CPU_TIME(t2)
+                time = time + dt
 
-	        	        	    IF((MOD(n,nstep/nout).eq.0).OR.(n.eq.nstep)) THEN
-	        	        			! Write output
-	        	   				CALL output2d(A,xplot,yplot,gllWeights,gllNodes,nex,ney,norder,nQuadNodes,&
-                                          nxiplot,netaplot,time,calculatedMu,cdf_out,p,2)
-	         			ENDIF
-					
-                        ! Track solution max and min throughout integration
-                        tmp_qmax = MAX(tmp_qmax,MAXVAL(A))
-                        tmp_qmin = MIN(tmp_qmin,MINVAL(A))
+  	        	    IF((MOD(n,nstep/nout).eq.0).OR.(n.eq.nstep)) THEN
+  	        			! Write output
+  	   				CALL output2d(A,xplot,yplot,gllWeights,gllNodes,nex,ney,norder,nQuadNodes,&
+                                  nxiplot,netaplot,time,calculatedMu,cdf_out,p,2)
+                  ENDIF
 
-                        oddstep = .NOT. oddstep
+                ! Track solution max and min throughout integration
+                tmp_qmax = MAX(tmp_qmax,MAXVAL(A))
+                tmp_qmin = MIN(tmp_qmin,MINVAL(A))
 
-                    ENDDO !n
+                oddstep = .NOT. oddstep
 
-                ELSE
-                    ! Use coeff_update to update 2d elements
-        				DO n=1,nstep
+            ENDDO !n
+
+        ELSE
+            ! Use coeff_update to update 2d elements
+				DO n=1,nstep
 
 !                    A0 = A
-                        CALL CPU_TIME(t1)
-                        CALL coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,dyel,nex,ney,&
-                                          norder,nQuadNodes,gqOrder,lagGaussVal,nZSnodes,lagValsZS,&
-                                          dozshulimit,transient,doZSMaxCFL)
-                        CALL CPU_TIME(t2)   
- !                       write(*,*) 'CHANGE IN A',maxval(abs(A-A0))
-		        			time = time + dt
-	
-		        			IF((MOD(n,nstep/nout).eq.0).OR.(n.eq.nstep)) THEN
-		        				! Write output
-		        				CALL output2d(A,xplot,yplot,gllWeights,gllNodes,nex,ney,norder,nQuadNodes,&
-                                          nxiplot,netaplot,time,calculatedMu,cdf_out,p,2)
-		        			ENDIF
-					
-                        ! Track solution max and min throughout integration
-		        			tmp_qmax = MAX(tmp_qmax,MAXVAL(A))
-		        			tmp_qmin = MIN(tmp_qmin,MINVAL(A))
+          CALL CPU_TIME(t1)
+          CALL coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,dyel,nex,ney,&
+                            norder,nQuadNodes,gqOrder,lagGaussVal,nZSnodes,lagValsZS,&
+                            dozshulimit,transient,doZSMaxCFL)
+          CALL CPU_TIME(t2)
+!                       write(*,*) 'CHANGE IN A',maxval(abs(A-A0))
+    			time = time + dt
 
-		        		ENDDO !n
-                ENDIF ! doStrangSplit
-                CALL CPU_TIME(tf)
-                tf = tf - t0
+    			IF((MOD(n,nstep/nout).eq.0).OR.(n.eq.nstep)) THEN
+    				! Write output
+    				CALL output2d(A,xplot,yplot,gllWeights,gllNodes,nex,ney,norder,nQuadNodes,&
+                                  nxiplot,netaplot,time,calculatedMu,cdf_out,p,2)
+    			ENDIF
 
-                ! Store element averages for conservation estimation 
-                DO i=1,nex
-                    DO j=1,ney
-                        DO l=0,norder
-                            tmpArray(l,:) = gllWeights(l)*gllWeights(:)*A(i,j,l,:)
-                        ENDDO!l
-                        C(i,j) = 0.25D0*dxel*dyel*SUM(tmpArray)
-                    ENDDO !j
-                ENDDO !i
-                cons = SUM(C-C0)/DBLE(nex*ney)
+                ! Track solution max and min throughout integration
+    			tmp_qmax = MAX(tmp_qmax,MAXVAL(A))
+    			tmp_qmin = MIN(tmp_qmin,MINVAL(A))
 
-                ! Compute errors
-                ALLOCATE(tmpErr(1:nex,1:ney),STAT=ierr)
-                DO i=1,nex
-                    DO j=1,ney
-                        DO l=0,norder
-                            tmpArray(l,:) = gllWeights(l)*gllWeights(:)*ABS(A(i,j,l,:)-A0(i,j,l,:))
-                        ENDDO!l
-                        tmpErr(i,j) = SUM(tmpArray)
-                    ENDDO !j
-                ENDDO !i                
-                e1(p) = 0.25D0*dxel*dyel*SUM(tmpErr)
+    		ENDDO !n
+        ENDIF ! doStrangSplit
+        CALL CPU_TIME(tf)
+        tf = tf - t0
 
-                DO i=1,nex
-                    DO j=1,ney
-                        DO l=0,norder
-                            tmpArray(l,:) = gllWeights(l)*gllWeights(:)*(ABS(A(i,j,l,:)-A0(i,j,l,:)))**2
-                        ENDDO!l
-                        tmpErr(i,j) = SUM(tmpArray)
-                    ENDDO !j
-                ENDDO !i                
-                e2(p) = sqrt(0.25D0*dxel*dyel*SUM(tmpErr))
+        ! Store element averages for conservation estimation
+        DO i=1,nex
+            DO j=1,ney
+                DO l=0,norder
+                    tmpArray(l,:) = gllWeights(l)*gllWeights(:)*A(i,j,l,:)
+                ENDDO!l
+                C(i,j) = 0.25D0*dxel*dyel*SUM(tmpArray)
+            ENDDO !j
+        ENDDO !i
+        cons = SUM(C-C0)/DBLE(nex*ney)
 
-                ei(p) = MAXVAL(ABS(A(:,:,:,:) - A0(:,:,:,:)))
+        ! Compute errors
+        ALLOCATE(tmpErr(1:nex,1:ney),STAT=ierr)
+        DO i=1,nex
+            DO j=1,ney
+                DO l=0,norder
+                    tmpArray(l,:) = gllWeights(l)*gllWeights(:)*ABS(A(i,j,l,:)-A0(i,j,l,:))
+                ENDDO!l
+                tmpErr(i,j) = SUM(tmpArray)
+            ENDDO !j
+        ENDDO !i
+        e1(p) = 0.25D0*dxel*dyel*SUM(tmpErr)
+
+        DO i=1,nex
+            DO j=1,ney
+                DO l=0,norder
+                    tmpArray(l,:) = gllWeights(l)*gllWeights(:)*(ABS(A(i,j,l,:)-A0(i,j,l,:)))**2
+                ENDDO!l
+                tmpErr(i,j) = SUM(tmpArray)
+            ENDDO !j
+        ENDDO !i
+        e2(p) = sqrt(0.25D0*dxel*dyel*SUM(tmpErr))
+
+        ei(p) = MAXVAL(ABS(A(:,:,:,:) - A0(:,:,:,:)))
 
 
-        			if (p.eq.1) then
-		        	write(UNIT=6,FMT='(A125)') &
+  			if (p.eq.1) then
+      	   write(UNIT=6,FMT='(A125)') &
 '   nex    ney     E1       E2         Einf      convergence rate  overshoot  undershoot   cons        cputime  nstep   tf   '
-		        	cnvg1 = 0.d0
-		        	cnvg2 = 0.d0
-		        	cnvgi = 0.d0
-		            else
-                		cnvg1 = -log(e1(p)/e1(p-1))/log(dble(nscale))
-                		cnvg2 = -log(e2(p)/e2(p-1))/log(dble(nscale))
-                		cnvgi = -log(ei(p)/ei(p-1))/log(dble(nscale))
-		            end if
-               write(*,990) nex,ney, e1(p), e2(p), ei(p), &
-                    cnvg1, cnvg2, cnvgi, &
-                    tmp_qmax-MAXVAL(A0), &
-                    MINVAL(A0)-tmp_qmin, &
+        	cnvg1 = 0.d0
+        	cnvg2 = 0.d0
+        	cnvgi = 0.d0
+        else
+      		cnvg1 = -log(e1(p)/e1(p-1))/log(dble(nscale))
+      		cnvg2 = -log(e2(p)/e2(p-1))/log(dble(nscale))
+      		cnvgi = -log(ei(p)/ei(p-1))/log(dble(nscale))
+        end if
+        write(*,990) nex,ney, e1(p), e2(p), ei(p), &
+                cnvg1, cnvg2, cnvgi, &
+                tmp_qmax-MAXVAL(A0), &
+                MINVAL(A0)-tmp_qmin, &
                     cons, tf, nstep,tfinal
 
 				IF(p .eq. nlevel) THEN
+                    ! Close netCDF files and write cputime vector
                     CALL output2d(A,xplot,yplot,gllWeights,gllNodes,nex,ney,norder,nQuadNodes,nxiplot,netaplot,time,&
-                                  calculatedMu,cdf_out,p,1) ! Close netCDF files
+                                  calculatedMu,cdf_out,p,1)
 				ENDIF
 				DEALLOCATE(A,A0,x_elcent,y_elcent,xplot,yplot,u0,v0,tmpErr,xQuad,yQuad,C,C0,STAT=ierr)
 			ENDDO
@@ -491,7 +505,7 @@ CONTAINS
 
     SUBROUTINE strangSplitUpdate(A,u0,v0,gllNodes,gllWeights,time,lagrangeDeriv,&
                                  dt,dxel,dyel,nOrder,nQuadNodes,nex,ney,oddstep,transient,&
-                                 dozshulimit,nZSnodes,quadZSWeights,lagValsZS)
+                                 dozshulimit,dofctlimit,nZSnodes,quadZSWeights,lagValsZS,nstep)
 
     ! =====================================================================================================
     ! strangSplitUpdate is responsible for selecting which slice of subcell volumes is sent to mDGsweep for update to time
@@ -504,14 +518,14 @@ CONTAINS
 
         IMPLICIT NONE
         ! Inputs
-        INTEGER, INTENT(IN) :: nOrder,nQuadNodes,nex,ney,nZSnodes
+        INTEGER, INTENT(IN) :: nOrder,nQuadNodes,nex,ney,nZSnodes,nstep
         REAL(KIND=8), INTENT(IN) :: dt,dxel,dyel,time
         REAL(KIND=8), DIMENSION(1:nex,1:ney,0:nQuadNodes,0:nQuadNodes), INTENT(IN) :: u0,v0
         REAL(KIND=8), DIMENSION(0:norder,0:nQuadNodes), INTENT(IN) :: lagrangeDeriv
         REAL(KIND=8), DIMENSION(0:nQuadNodes), INTENT(IN) :: gllNodes,gllWeights
         REAL(KIND=8), DIMENSION(0:nZSnodes), INTENT(IN) :: quadZSWeights
         REAL(KIND=8), DIMENSION(0:nOrder,0:nZSnodes), INTENT(IN) :: lagValsZS
-        LOGICAL, INTENT(IN) :: oddstep,dozshulimit,transient
+        LOGICAL, INTENT(IN) :: oddstep,dozshulimit,dofctlimit,transient
         ! Outputs
         REAL(KIND=8), DIMENSION(1:nex,1:ney,0:nOrder,0:nOrder), INTENT(INOUT) :: A
         ! Local variables
@@ -532,10 +546,19 @@ CONTAINS
                 A1dx(1:nex,:) = A(1:nex,whichEl,:,whichLvl)
                 u1dx(1:nex,:) = u0(1:nex,whichEl,:,whichLvl)
 
+                IF(dozshulimit .AND. nstep .eq. 1) THEN
+                    ! Modify ICs according to Z&S limiting
+                    IF(nZSnodes .eq. nQuadNodes) THEN
+                        CALL split_polyMod(A1dx,gllWeights,nex,nOrder,nQuadNodes,lagValsZS,0)
+                    ELSE
+                        CALL split_polyMod(A1dx,quadZSWeights,nex,nOrder,nZSNodes,lagValsZS,1)
+                    ENDIF
+                ENDIF
+
                 CALL nDGsweep(A1dx,nex,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u1dx,lagrangeDeriv,time,dt,transient,&
-                              dozshulimit,nZSnodes,quadZSWeights,lagValsZS)
+                              dozshulimit,dofctlimit,nZSnodes,quadZSWeights,lagValsZS)
                 ! Update solution
-                A(1:nex,whichEl,:,whichLvl) = A1dx(1:nex,:)                
+                A(1:nex,whichEl,:,whichLvl) = A1dx(1:nex,:)
             ENDDO !i
 
             totalLvls = nex*(nOrder+1)
@@ -546,9 +569,9 @@ CONTAINS
                 v1dy(1:ney,:) = v0(whichEl,1:ney,whichLvl,:)
 
                 CALL nDGsweep(A1dy,ney,dyel,nOrder,nQuadNodes,gllNodes,gllWeights,v1dy,lagrangeDeriv,time,dt,transient,&
-                              dozshulimit,nZSnodes,quadZSWeights,lagValsZS)
+                              dozshulimit,dofctlimit,nZSnodes,quadZSWeights,lagValsZS)
                 ! Update solution
-                A(whichEl,1:ney,whichLvl,:) = A1dy(1:ney,:)                
+                A(whichEl,1:ney,whichLvl,:) = A1dy(1:ney,:)
             ENDDO !i
 
         ELSE
@@ -563,9 +586,9 @@ CONTAINS
                 v1dy(1:ney,:) = v0(whichEl,1:ney,whichLvl,:)
 
                 CALL nDGsweep(A1dy,ney,dyel,nOrder,nQuadNodes,gllNodes,gllWeights,v1dy,lagrangeDeriv,time,dt,transient,&
-                              dozshulimit,nZSnodes,quadZSWeights,lagValsZS)
+                              dozshulimit,dofctlimit,nZSnodes,quadZSWeights,lagValsZS)
                 ! Update solution
-                A(whichEl,1:ney,whichLvl,:) = A1dy(1:ney,:)                
+                A(whichEl,1:ney,whichLvl,:) = A1dy(1:ney,:)
             ENDDO !i
 
             totalLvls = ney*(nOrder+1)
@@ -576,9 +599,9 @@ CONTAINS
                 u1dx(1:nex,:) = u0(1:nex,whichEl,:,whichLvl)
 
                 CALL nDGsweep(A1dx,nex,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u1dx,lagrangeDeriv,time,dt,transient,&
-                              dozshulimit,nZSnodes,quadZSWeights,lagValsZS)
+                              dozshulimit,dofctlimit,nZSnodes,quadZSWeights,lagValsZS)
                 ! Update solution
-                A(1:nex,whichEl,:,whichLvl) = A1dx(1:nex,:)                
+                A(1:nex,whichEl,:,whichLvl) = A1dx(1:nex,:)
             ENDDO !i
         ENDIF !oddstep
     END SUBROUTINE strangSplitUpdate
@@ -607,9 +630,9 @@ CONTAINS
         REAL(KIND=8), DIMENSION(0:norder,0:norder) :: r
         REAL(KIND=8), DIMENSION(1:2) :: domainCenter
         REAL(KIND=8) :: PI,dxmin,dymin,dxel,dyel,xWidth,yWidth,xc,yc,spd
-        INTEGER :: i,j,k
+        INTEGER :: i,j,k,l
 
-		PI = DACOS(-1D0)
+		    PI = DACOS(-1D0)
         spd = 2D0*PI
         IF(ntest .eq. 11) spd = 1D0
 
@@ -621,9 +644,9 @@ CONTAINS
         dxel = x_elcent(2) - x_elcent(1)
         dyel = y_elcent(2) - y_elcent(1)
 
-		! Minimum internode spacing, mapped to physical domain
-		dxmin = (dxel/2D0)*MINVAL(gllNodes(1:nQuadNodes)-gllNodes(0:nQuadNodes-1))
-		dymin = (dyel/2D0)*MINVAL(gllNodes(1:nQuadNodes)-gllNodes(0:nQuadNodes-1))
+		    ! Minimum internode spacing, mapped to physical domain
+	      dxmin = (dxel/2D0)*MINVAL(gllNodes(1:nQuadNodes)-gllNodes(0:nQuadNodes-1))
+	      dymin = (dyel/2D0)*MINVAL(gllNodes(1:nQuadNodes)-gllNodes(0:nQuadNodes-1))
 
         ! Quadrature locations, mapped to physical domain
         DO i=1,nex
@@ -654,10 +677,10 @@ CONTAINS
                         DO k=0,norder
 
                      psiu(i,j,k,:,1) = spd*0.5D0*( (xQuad(i,k)-domainCenter(1))**2 + (yQuad(j,:) + dymin/2d0 -domainCenter(2))**2 )
-                     psiu(i,j,k,:,0) = spd*0.5D0*( (xQuad(i,k)-domainCenter(1))**2 + (yQuad(j,:) - dymin/2d0 -domainCenter(2))**2 ) 
-                        
+                     psiu(i,j,k,:,0) = spd*0.5D0*( (xQuad(i,k)-domainCenter(1))**2 + (yQuad(j,:) - dymin/2d0 -domainCenter(2))**2 )
+
                      psiv(i,j,k,:,1) = spd*0.5D0*( (xQuad(i,k) + dxmin/2d0-domainCenter(1))**2 + (yQuad(j,:) -domainCenter(2))**2 )
-                     psiv(i,j,k,:,0) = spd*0.5D0*( (xQuad(i,k) - dymin/2d0-domainCenter(1))**2 + (yQuad(j,:) -domainCenter(2))**2 ) 
+                     psiv(i,j,k,:,0) = spd*0.5D0*( (xQuad(i,k) - dymin/2d0-domainCenter(1))**2 + (yQuad(j,:) -domainCenter(2))**2 )
 
                         ENDDO !k
                     ENDDO !j
@@ -742,7 +765,7 @@ CONTAINS
                         DO k=0,norder ! Fill distance array for (i,j) element
                             r(k,:) = 4D0*SQRT( (xQuad(i,k)-0.25D0)**2 + (yQuad(j,:)-0.25D0)**2 )
                         ENDDO !k
-                        WHERE(r .lt. 1D0)                            
+                        WHERE(r .lt. 1D0)
 !                            A(i,j,:,:) = (0.5d0*(1.d0 + DCOS(PI*r(:,:))))
                             A(i,j,:,:) = (0.25d0*(1.d0 + DCOS(PI*r(:,:)))**2)
                         END WHERE
@@ -758,9 +781,33 @@ CONTAINS
                         DO k=0,norder ! Fill distance array for (i,j) element
                             r(k,:) = 3D0*SQRT( (xQuad(i,k)-0.4D0)**2 + (yQuad(j,:)-0.4D0)**2 )
                         ENDDO !k
-                        WHERE(r .lt. 1D0)                            
+                        WHERE(r .lt. 1D0)
                             A(i,j,:,:) = (0.5d0*(1.d0 + DCOS(PI*r(:,:))))**3
                         END WHERE
+                    ENDDO !j
+                ENDDO !i
+            CASE(7) ! slotted cylinder ICs
+                cdf_out = 'dg2d_def_cyl.nc'
+                tfinal = 5D0
+                A = 0D0
+                xc = 0.25D0
+                yc = 0.5D0
+                DO i=1,nex
+                    DO j=1,ney
+                        DO k=0,nOrder
+                            r(k,:) = SQRT((xQuad(i,k)-xc)**2 + (yQuad(j,:)-yc)**2)
+                        ENDDO !k
+                        WHERE(r .lt. 0.15D0)
+                            A(i,j,:,:) = 1D0
+                        END WHERE
+
+                        DO k=0,nOrder
+                            DO l=0,nOrder
+                                IF(ABS(xQuad(i,k)-xc) .lt. 0.025D0 .AND. yQuad(j,l) .gt.(yc-0.0625D0)) THEN
+                                    A(i,j,k,l) = 0D0
+                                ENDIF
+                            ENDDO !l
+                        ENDDO !k
                     ENDDO !j
                 ENDDO !i
             CASE(8) ! gaussian bump
@@ -796,7 +843,7 @@ CONTAINS
 		REAL(KIND=8), DIMENSION(1:ney*netaplot), INTENT(IN) :: y
 		REAL(KIND=8), DIMENSION(1:nex,1:ney,0:norder,0:norder), INTENT(IN) :: A
         REAL(KIND=8), DIMENSION(0:nQuadNodes), INTENT(IN) :: gllWeights,gllNodes
-		
+
 		! Outputs
 
 		! Local variables
@@ -809,7 +856,7 @@ CONTAINS
 		CHARACTER(len=8) :: nxname,xname,nyname,yname,qname,muname
 
 		REAL(KIND=8), ALLOCATABLE, DIMENSION(:) :: tmp
-		REAL(KIND=8), DIMENSION(1:nex*nxiplot) :: temp	
+		REAL(KIND=8), DIMENSION(1:nex*nxiplot) :: temp
 		INTEGER :: i,j,l,m,nxout,nyout,ylvl,internalLvl
 
 	    SAVE cdfid, idq, t_dimid, start, count
@@ -898,9 +945,9 @@ CONTAINS
             ENDDO!i
             ierr = NF90_PUT_VAR(cdfid,idq,temp,start,count)
         ENDDO!j
-		
-		! Increment t level 
-		start(3) = start(3) + 1 
+
+		! Increment t level
+		start(3) = start(3) + 1
 
 	END SUBROUTINE output2d
 

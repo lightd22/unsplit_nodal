@@ -40,8 +40,9 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,d
 	REAL(KIND=8), DIMENSION(1:nex,0:ney+1,0:1,0:nQuadNodes) :: edgeValsNS
 	REAL(KIND=8), DIMENSION(0:nex,1:ney,0:nQuadNodes) :: Fhat
 	REAL(KIND=8), DIMENSION(1:nex,0:ney,0:nQuadNodes) :: Ghat
-    REAL(KIND=8) :: error
+    REAL(KIND=8) :: error,elemAvg
 
+	REAL(KIND=8), DIMENSION(0:norder,0:norder) :: tmpArray
 
     REAL(KIND=4), DIMENSION(2) :: tstart,tend
     INTEGER :: bctype
@@ -111,6 +112,21 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,d
 
     ENDDO !stage
     A = A1
+
+    IF(dozshulimit) THEN
+    ! Compute element average via quadrature at next time level
+        DO i=1,nex
+            DO j=1,ney
+                DO l=0,nQuadNodes
+                    tmpArray(l,:) = gllWeights(l)*gllWeights(:)*A(i,j,l,:)
+                ENDDO!l
+                elemAvg = 0.25D0*SUM(tmpArray)
+            IF(elemAvg .lt. 0d0) THEN
+                write(*,*) 'WARNING-- ELEMENT MASS IS NEGATIVE AFTER TIME STEP'
+            ENDIF
+            ENDDO !j
+        ENDDO  !i
+    ENDIF !dozshulimit
 
 END SUBROUTINE coeff_update
 
@@ -296,7 +312,9 @@ SUBROUTINE polyMod(Ain,gllWeights,lagGaussVal,nZSnodes,lagValsZS,nex,ney,nQuadNo
     LOGICAL gllOnly
 	INTEGER :: i,j,p,q,l
 	REAL(KIND=8), DIMENSION(0:norder,0:norder) :: tmpArray
-    REAL(KIND=8) :: theta,elemAvg,valMin
+    REAL(KIND=8) :: theta,elemAvg,valMin,eps
+
+    eps = epsilon(1d0)
 
 	DO i=1,nex
 		DO j=1,ney
@@ -316,6 +334,7 @@ SUBROUTINE polyMod(Ain,gllWeights,lagGaussVal,nZSnodes,lagValsZS,nex,ney,nQuadNo
             valMin = MIN(valMin,MINVAL(Ain(i,j,:,:)))
 
             IF(doZSMaxCFL) THEN
+
                 ! First do Gauss x Gauss points
                 DO p=0,gqOrder
                     DO q=0,gqOrder
@@ -359,6 +378,7 @@ SUBROUTINE polyMod(Ain,gllWeights,lagGaussVal,nZSnodes,lagValsZS,nex,ney,nQuadNo
 !                    ENDDO !q
 !                ENDDO !p
             ENDIF !doZSMaxCFL
+            valMin = valMin - eps
 
             ! Compute theta
             theta = MIN(abs(elemAvg)/(abs(valMin-elemAvg)),1D0)

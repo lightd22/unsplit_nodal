@@ -4,7 +4,7 @@
 ! -------------------------------------------------------------------------------
 
 SUBROUTINE nDGsweep(A,nelem,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u0,lagDeriv,time,dt,transient,&
-                    dozshulimit,nZSnodes,quadZSWeights,lagValsZS)
+                    dozshulimit,dofctlimit,nZSnodes,quadZSWeights,lagValsZS)
     IMPLICIT NONE
     INTEGER, PARAMETER :: DOUBLE = KIND(1D0) ! Specification of DOUBLE
 
@@ -20,10 +20,10 @@ SUBROUTINE nDGsweep(A,nelem,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u0,lagDer
     REAL(KIND=DOUBLE), DIMENSION(0:nZSNodes), INTENT(IN) :: quadZSWeights
     REAL(KIND=DOUBLE), DIMENSION(0:nOrder,0:nZSNodes), INTENT(IN) :: lagValsZS
     REAL(KIND=DOUBLE), DIMENSION(1:nelem,0:nQuadNodes), INTENT(IN) :: u0
-    LOGICAL, INTENT(IN) :: transient,dozshulimit
+    LOGICAL, INTENT(IN) :: transient,dozshulimit,dofctlimit
 
     ! Outputs
-    REAL(KIND=DOUBLE), DIMENSION(1:nelem,0:nOrder), INTENT(INOUT) :: A 
+    REAL(KIND=DOUBLE), DIMENSION(1:nelem,0:nOrder), INTENT(INOUT) :: A
 
     ! Local Variables
     REAL(KIND=DOUBLE), DIMENSION(1:nelem,0:nOrder) :: AFwd,AStar
@@ -33,9 +33,10 @@ SUBROUTINE nDGsweep(A,nelem,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u0,lagDer
     REAL(KIND=DOUBLE), DIMENSION(0:nelem) :: flx
     REAL(KIND=DOUBLE), DIMENSION(0:nQuadNodes) :: currLagDeriv,currElemQuad,currElemVel
 
+    REAL(KIND=DOUBLE) :: elemAvg
+
     INTEGER :: k,j,stage,stat,l
 
-    AStar = A
     u = u0
 
     IF(dozshulimit) THEN
@@ -45,10 +46,11 @@ SUBROUTINE nDGsweep(A,nelem,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u0,lagDer
             CALL split_polyMod(A,quadZSWeights,nelem,nOrder,nZSNodes,lagValsZS,1)
         ENDIF
     ENDIF
+    AStar = A
 
     ! Do SSPRK3 Update
     DO stage=1,3
-        ! Update velocities (if necessary) 
+        ! Update velocities (if necessary)
         IF(transient) THEN
             SELECT CASE(stage)
                 CASE(1)
@@ -64,6 +66,10 @@ SUBROUTINE nDGsweep(A,nelem,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u0,lagDer
 
         CALL split_evalExpansion(quadVals,edgeVals,AStar,nelem,nQuadNodes,nOrder)
         CALL split_numFlux(flx,edgeVals,utmp,nelem,nQuadNodes)
+
+        IF(dofctlimit) THEN ! Use FCT adjustment for element avg nonnegativity
+          CALL FLUXCOR(Astar,Astar,flx,gllWeights,dxel,dt,nelem,nOrder,1)
+        ENDIF !dofctlimit
 
         ! Forward Step
         DO j=1,nelem
@@ -85,15 +91,33 @@ SUBROUTINE nDGsweep(A,nelem,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u0,lagDer
 			AStar = A/3d0 + 2D0*AFwd/3D0
 		END SELECT
 
-        IF(dozshulimit) THEN
-            IF(nZSnodes .eq. nQuadNodes) THEN
-                CALL split_polyMod(Astar,gllWeights,nelem,nOrder,nQuadNodes,lagValsZS,0)
-            ELSE
-                CALL split_polyMod(Astar,quadZSWeights,nelem,nOrder,nZSNodes,lagValsZS,1)
-            ENDIF
+      IF(dozshulimit) THEN
+        IF(nZSnodes .eq. nQuadNodes) THEN
+          CALL split_polyMod(Astar,gllWeights,nelem,nOrder,nQuadNodes,lagValsZS,0)
+!         CALL split_polyMod(Astar,gllWeights,nelem,nOrder,nQuadNodes,lagValsZS,2)
+        ELSE
+          CALL split_polyMod(Astar,quadZSWeights,nelem,nOrder,nZSNodes,lagValsZS,1)
         ENDIF
-       
+      ENDIF
+
+!        IF(dozshulimit) THEN
+        ! Compute element average via quadrature at next time level
+!            DO j=1,nelem
+!                elemAvg = 0.5D0*SUM(gllWeights(:)*Astar(j,:))
+!                IF(elemAvg .lt. 0d0) THEN
+!                write(*,'(A,I1)') 'WARNING-- ELEMENT MASS IS NEGATIVE AFTER STAGE',stage
+!                write(*,'(A,E10.4)') '  Minimum value = ', minval(Astar(j,:))
+!                    STOP
+!                ENDIF
+!            ENDDO !j
+!        ENDIF !dozshulimit
+
     ENDDO !stage
+    IF(dofctlimit) THEN
+      ! For fct positivity limiting, only adjust polynomial at the very END of a timestep
+      CALL split_polyMod(Astar,gllWeights,nelem,nOrder,nQuadNodes,lagValsZS,0)
+      !CALL split_polyMod(Astar,gllWeights,nelem,nOrder,nQuadNodes,lagValsZS,2)
+    ENDIF !dofctlimit
     A = AStar
 
 END SUBROUTINE nDGsweep
@@ -114,7 +138,7 @@ SUBROUTINE split_evalExpansion(quadVals,edgeVals,AIn,nelem,nNodes,nOrder)
 
     ! Ansatz value at quad locations for the jth element is just coefficient value
     quadVals = AIn
-    
+
     edgeVals(1:nelem,0) = AIn(:,0) ! left edge value is just left-most coefficient
     edgeVals(1:nelem,1) = AIn(:,nNodes) ! right edge value is just right-most coefficient
 
@@ -132,7 +156,7 @@ SUBROUTINE split_numFlux(flx,edgeVals,uin,nelem,nNodes)
 	REAL(KIND=DOUBLE), DIMENSION(0:nelem+1,0:1), INTENT(IN) :: edgeVals
 	REAL(KIND=DOUBLE), DIMENSION(0:nelem,0:nNodes), INTENT(IN) :: uin
 
-	! -- Outputs	
+	! -- Outputs
 	REAL(KIND=DOUBLE),DIMENSION(0:nelem), INTENT(OUT) :: flx
 
 	! -- Local variables
@@ -154,8 +178,7 @@ REAL(KIND=8) FUNCTION split_dadt(quadVals,flx,u,qWeights,lagDeriv,k,j,nelem,nNod
 
     IF( k .eq. 0) THEN
         split_dadt = split_dadt + flx(j-1)
-    ENDIF
-    IF( k .eq. nNodes) THEN
+    ELSEIF( k .eq. nNodes) THEN
         split_dadt = split_dadt - flx(j)
     ENDIF
     split_dadt = 2D0*split_dadt/qWeights(k)
@@ -167,75 +190,145 @@ SUBROUTINE split_polyMod(AIn,qWeights,nelem,nOrder,nQuad,lagVals,stat)
     IMPLICIT NONE
     ! Inputs
     INTEGER, INTENT(IN) :: nelem,nOrder,nQuad
-!    REAL(KIND=8), DIMENSION(0:nOrder,1:nelem), INTENT(INOUT) :: AIn
     REAL(KIND=8), DIMENSION(1:nelem,0:nOrder), INTENT(INOUT) :: AIn
     REAL(KIND=8), DIMENSION(0:nQuad), INTENT(IN) :: qWeights
     REAL(KIND=8), DIMENSION(0:nOrder,0:nQuad), INTENT(IN) :: lagVals
     ! Local Variables
     INTEGER :: j,l,stat
     REAL(KIND=8), DIMENSION(0:nQuad) :: qVals
-    REAL(KIND=8) :: avgVal,theta,valMin,valMax,eps
+    REAL(KIND=8) :: avgVal,theta,valMin,valMax,eps,Mp,Mt
 
     eps = epsilon(1d0)
-!    eps = 0D0
     ! First check incoming element averages
-    IF(stat == 1) THEN
+    IF(stat == 0) THEN
+      DO j=1,nelem
+          ! Use nodes themselves to do limiting, rather than evaluating polynomial multiple times
+          avgVal = 0.5D0*SUM( qWeights(:)*AIn(j,:) )
+          valMin = MINVAL(AIn(j,:))-eps
+
+          IF(avgVal .lt. 0D0) THEN
+              write(*,*) 'Element AVG in Z&S Limiter is negative!! Negative average value = ',avgVal
+          ENDIF
+
+          ! -- Compute rescale factor
+          theta = MIN( abs(avgVal/(valMin-avgVal)),1D0 )
+  !       theta = MIN( abs(avgVal/(valMin-avgVal)),abs((1D0-avgVal)/(valMax-avgVal)),1D0 )
+
+          ! -- Rescale polynomial
+          AIn(j,:) = theta*(AIn(j,:)-avgVal) + avgVal
+      ENDDO !j
+    ELSE IF(stat == 1) THEN
+      DO j=1,nelem
+          ! --  Evaluate DG polynomial at quad locations
+          ! Note: This isn't necessary if the quad nodes used here are same nodes that the basis is interpolating at --
+          !       In this case the polynomial coefficients are the nodal values. Two exceptions are the edge
+          !       values (-1 and 1) which are always part of a GLL integration. These may be read from Ain directly
+          qVals(0) = AIn(j,0)
+          qVals(nQuad) = AIn(j,nOrder)
+          DO l=1,nQuad-1
+              qVals(l) = SUM(AIn(j,:)*lagVals(:,l))
+          ENDDO !l
+
+          avgVal = 0.5D0*SUM( qWeights(:)*qVals(:) )
+          valMin = MIN( MINVAL(AIn(j,:)) , MINVAL(qVals(:)) ) - eps
+
+          ! -- Compute rescale factor
+          theta = MIN( abs(avgVal/(valMin-avgVal)),1D0 )
+
+          AIn(j,:) = theta*(AIn(j,:)-avgVal) + avgVal
+
+      ENDDO !j
+    ELSE IF(stat==2) THEN
+        ! ===============================================================================================
+        ! ALTERNATIVE: Replace linear rescaling with node truncation + mass redistribution
+        ! ===============================================================================================
         DO j=1,nelem
-            ! -- First evaluate DG polynomial at quad locations
-            ! Note: This is not necessary if the quad nodes used are same nodes that the basis is interpolating --
-            !       In this case the polynomial coefficients are the nodal values. Two exceptions are the edge
-            !       values (-1 and 1) which are always part of a GLL integration. These may be read from coefficients directly
-            qVals(0) = AIn(j,0)
-            qVals(nQuad) = AIn(j,nOrder)
-            DO l=1,nQuad-1
-                qVals(l) = SUM(AIn(j,:)*lagVals(:,l))
+            Mp = 0D0
+            Mt = 0D0
+
+            DO l=0,nOrder
+                Mt = Mt + qWeights(l)*AIn(j,l)
+                AIn(j,l) = MAX(0D0,AIn(j,l)) ! Zero out negative nodes
+                Mp = Mp + qWeights(l)*AIn(j,l)
+
             ENDDO !l
-    
-            avgVal = 0.5D0*SUM( qWeights(:)*qVals(:) )
-!            valMin = MINVAL(qVals(:))-eps
-             valMin = MIN( MINVAL(AIn(j,1:nOrder-1)) , MINVAL(qVals(:)) ) - eps
-
-            ! -- Compute rescale factor
-            theta = MIN( abs(avgVal/(valMin-avgVal)),1D0 )
-
-            AIn(j,:) = theta*(AIn(j,:)-avgVal) + avgVal
-
-!            IF(avgVal .lt. 0D0) THEN
-!                qVals(0) = AIn(j,0)
-!                qVals(nQuad) = AIn(j,nOrder)
-!                DO l=1,nQuad-1
-!                    qVals(l) = SUM(AIn(j,:)*lagVals(:,l))
-!                ENDDO !l
-
-!                write(*,'(A,E10.4)') '   Element AVG in Z&S Limiter is negative!! Negative average value = ',avgVal
-!                write(*,'(A,E10.4)') '   Minimum value = ',valMin
-!                write(*,'(A,F5.3)') '   Rescaling factor theta = ',theta
-!                write(*,'(A,E10.4)') '   New Average = ', 0.5D0*SUM( qWeights(:)*qVals(:) )
-!                write(*,'(A,E10.4)') '   New minimum value = ', MINVAL(qVals(:))
-!                STOP
-!            ENDIF
-
-        ENDDO !j
-    ELSE
-        DO j=1,nelem
-            ! (Optional) Use nodes themselves to do limiting, rather than evaluating polynomial multiple times
-            avgVal = 0.5D0*SUM( qWeights(:)*AIn(j,:) )
-            valMin = MINVAL(AIn(j,:))-eps
-
-            IF(avgVal .lt. 0D0) THEN
-                write(*,*) 'Element AVG in Z&S Limiter is negative!! Negative average value = ',avgVal
-            ENDIF
-
-            ! -- Compute rescale factor
-            theta = MIN( abs(avgVal/(valMin-avgVal)),1D0 )
-    !       theta = MIN( abs(avgVal/(valMin-avgVal)),abs((1D0-avgVal)/(valMax-avgVal)),1D0 )
-
-            ! -- Rescale polynomial
-            AIn(j,:) = theta*(AIn(j,:)-avgVal) + avgVal
+            theta = MAX(Mt,0D0)/MAX(Mp,TINY(1D0))
+            AIn(j,:) = theta*AIn(j,:) ! Reduce remaining positive nodes by reduction factor
         ENDDO !j
     ENDIF !stat
-    
+
 END SUBROUTINE split_polyMod
+
+SUBROUTINE FLUXCOR(Acur,Apre,flx,qweights,dxel,dt,nelem,nOrder,substep)
+	! Computes flux reductions factors to prevent total mass within each element from going negative
+	! Returns modified flx array.
+	IMPLICIT NONE
+	INTEGER, PARAMETER :: DOUBLE = KIND(1D0)
+	! -- Inputs
+	INTEGER, INTENT(IN) :: nOrder, nelem,substep
+	REAL(KIND=DOUBLE), DIMENSION(1:nelem,0:nOrder), INTENT(IN) :: Acur,Apre
+  REAL(KIND=DOUBLE), DIMENSION(0:nOrder), INTENT(IN) :: qweights
+	REAL(KIND=DOUBLE), INTENT(IN) :: dxel,dt
+	! -- Outputs
+  REAL(KIND=DOUBLE), DIMENSION(0:nelem), INTENT(INOUT) :: flx
+	! -- Local variables
+	REAL(KIND=DOUBLE) :: Pj,Qj,eps,avgValj
+  REAL(KIND=DOUBLE), DIMENSION(0:nelem) :: flxcor
+	REAL(KIND=DOUBLE), DIMENSION(0:nelem+1) :: R ! Reduction ratio for outward fluxes so that element j has non-negative values (1D0 indicates no limiting needed)
+	INTEGER :: j,k
+
+	eps = 1D-6 ! Small parameter used to prevent division by 0
+
+	DO j=1,nelem
+		! Compute maximum allowable flux out of element j based on which substep of ssprk3 we are on
+		SELECT CASE(substep)
+			CASE(1)
+        avgValj = 0.5D0*SUM(qweights(:)*Acur(j,:))
+!				Qj = (dxel/dt)*avgValj
+!		IF(Qj .lt. 0D0) THEN
+!			write(*,*) 'Stage 1 Qj < 0! j=',j,'Qj=',Qj
+!			write(*,*) Acur(0,j)
+!		END IF
+
+			CASE(2)
+        avgValj = 0.5D0*(SUM(qweights(:)*Acur(j,:))+3D0*SUM(qweights(:)*Apre(j,:)))
+!				Qj = (dxel/dt)*avgValj
+!		IF(Qj .lt. 0D0) THEN
+!			write(*,*) 'Stage 2 Qj < 0! j=',j,'Qj=',Qj
+!			write(*,*) Apre(0,j),Acur(0,j)
+!		END IF
+
+			CASE(3)
+        avgValj = 0.5D0*(2D0*SUM(qweights(:)*Acur(j,:))+SUM(qweights(:)*Apre(j,:)))
+!				Qj = (dxel/(2D0*dt))*avgValj
+!		IF(Qj .lt. 0D0) THEN
+!			write(*,*) 'Stage 3 Qj < 0! j=',j,'Qj=',Qj
+!			write(*,*) Apre(0,j),Acur(0,j)
+!		END IF
+
+		END SELECT
+    Qj = (dxel/dt)*avgValj
+
+		! Compute actual flux out of element j
+		Pj = MAX(0D0,flx(j)) - MIN(0D0,flx(j-1)) + eps
+
+		! Compute reduction ratio
+		R(j) = MIN(1D0,Qj/Pj)
+	END DO
+	! Periodicity
+	R(0) = R(nelem)
+	R(nelem+1) = R(1)
+
+
+	! Compute flux corection factors
+	DO j=0,nelem
+		! If flux at right edge is negative, use limiting ratio in element to the right of current one
+		! (since that is where we are pulling mass from)
+		flxcor(j) = R(j) - 0.5D0*(1D0-INT(SIGN(1D0,flx(j))))*(R(j)-R(j+1))
+    flx(j)=flxcor(j)*flx(j)
+	END DO
+
+END SUBROUTINE FLUXCOR
 
 REAL(KIND=8) FUNCTION split_vel_update(t)
 		IMPLICIT NONE
