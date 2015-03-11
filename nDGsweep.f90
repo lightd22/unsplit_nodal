@@ -69,6 +69,7 @@ SUBROUTINE nDGsweep(A,nelem,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u0,lagDer
 
         IF(dofctlimit) THEN ! Use FCT adjustment for element avg nonnegativity
           CALL FLUXCOR(Astar,Astar,flx,gllWeights,dxel,dt,nelem,nOrder,1)
+          !CALL FLUXCOR(Astar,Astar,flx,gllWeights,dxel,dt,nelem,nOrder,stage)
         ENDIF !dofctlimit
 
         ! Forward Step
@@ -93,8 +94,8 @@ SUBROUTINE nDGsweep(A,nelem,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u0,lagDer
 
       IF(dozshulimit) THEN
         IF(nZSnodes .eq. nQuadNodes) THEN
-          CALL split_polyMod(Astar,gllWeights,nelem,nOrder,nQuadNodes,lagValsZS,0)
-!         CALL split_polyMod(Astar,gllWeights,nelem,nOrder,nQuadNodes,lagValsZS,2)
+!          CALL split_polyMod(Astar,gllWeights,nelem,nOrder,nQuadNodes,lagValsZS,0)
+         CALL split_polyMod(Astar,gllWeights,nelem,nOrder,nQuadNodes,lagValsZS,2)
         ELSE
           CALL split_polyMod(Astar,quadZSWeights,nelem,nOrder,nZSNodes,lagValsZS,1)
         ENDIF
@@ -115,8 +116,8 @@ SUBROUTINE nDGsweep(A,nelem,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u0,lagDer
     ENDDO !stage
     IF(dofctlimit) THEN
       ! For fct positivity limiting, only adjust polynomial at the very END of a timestep
-      CALL split_polyMod(Astar,gllWeights,nelem,nOrder,nQuadNodes,lagValsZS,0)
-      !CALL split_polyMod(Astar,gllWeights,nelem,nOrder,nQuadNodes,lagValsZS,2)
+      !CALL split_polyMod(Astar,gllWeights,nelem,nOrder,nQuadNodes,lagValsZS,0)
+      CALL split_polyMod(Astar,gllWeights,nelem,nOrder,nQuadNodes,lagValsZS,2)
     ENDIF !dofctlimit
     A = AStar
 
@@ -206,9 +207,9 @@ SUBROUTINE split_polyMod(AIn,qWeights,nelem,nOrder,nQuad,lagVals,stat)
           avgVal = 0.5D0*SUM( qWeights(:)*AIn(j,:) )
           valMin = MINVAL(AIn(j,:))-eps
 
-          IF(avgVal .lt. 0D0) THEN
-              write(*,*) 'Element AVG in Z&S Limiter is negative!! Negative average value = ',avgVal
-          ENDIF
+!          IF(avgVal .lt. 0D0) THEN
+!              write(*,*) 'Element AVG in Z&S Limiter is negative!! Negative average value = ',avgVal
+!          ENDIF
 
           ! -- Compute rescale factor
           theta = MIN( abs(avgVal/(valMin-avgVal)),1D0 )
@@ -285,30 +286,23 @@ SUBROUTINE FLUXCOR(Acur,Apre,flx,qweights,dxel,dt,nelem,nOrder,substep)
 			CASE(1)
         avgValj = 0.5D0*SUM(qweights(:)*Acur(j,:))
 !				Qj = (dxel/dt)*avgValj
-!		IF(Qj .lt. 0D0) THEN
-!			write(*,*) 'Stage 1 Qj < 0! j=',j,'Qj=',Qj
-!			write(*,*) Acur(0,j)
-!		END IF
 
 			CASE(2)
         avgValj = 0.5D0*(SUM(qweights(:)*Acur(j,:))+3D0*SUM(qweights(:)*Apre(j,:)))
 !				Qj = (dxel/dt)*avgValj
-!		IF(Qj .lt. 0D0) THEN
-!			write(*,*) 'Stage 2 Qj < 0! j=',j,'Qj=',Qj
-!			write(*,*) Apre(0,j),Acur(0,j)
-!		END IF
 
 			CASE(3)
         avgValj = 0.5D0*(2D0*SUM(qweights(:)*Acur(j,:))+SUM(qweights(:)*Apre(j,:)))
 !				Qj = (dxel/(2D0*dt))*avgValj
-!		IF(Qj .lt. 0D0) THEN
-!			write(*,*) 'Stage 3 Qj < 0! j=',j,'Qj=',Qj
-!			write(*,*) Apre(0,j),Acur(0,j)
-!		END IF
 
 		END SELECT
     Qj = (dxel/dt)*avgValj
+    Qj = MAX(Qj,0D0)
 
+    !		IF(Qj .lt. 0D0) THEN
+    !			write(*,*) 'Qj < 0! j=',j,'Qj=',Qj
+    !			write(*,*) Apre(0,j),Acur(0,j)
+    !		END IF
 		! Compute actual flux out of element j
 		Pj = MAX(0D0,flx(j)) - MIN(0D0,flx(j-1)) + eps
 

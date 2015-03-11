@@ -23,8 +23,8 @@ PROGRAM EXECUTE
     doTimeTest = .FALSE.
     doZSMaxCFL = .TRUE.
 
-    polyOrder = 3
-	  startRes = 15
+    polyOrder = 4
+	  startRes = 12
     testEnd = 1
 
     ALLOCATE(testsVec(1:testEnd),STAT=ierr)
@@ -33,32 +33,38 @@ PROGRAM EXECUTE
     IF(doZSMaxCFL) THEN
         SELECT CASE(polyOrder)
             CASE(2)
-!                muMAX = 0.450D0
-                muMAX  = 0.167D0
+              muMAX = 0.450D0
+!              muMAX  = 0.167D0
             CASE(3)
-                muMAX = 0.255D0
-!                muMAX  = 0.167D0
-!                 muMAX  = 0.083D0
+!              muMAX = 0.255D0
+              muMAX  = 0.167D0
+!              muMAX  = 0.083D0
+
+!              muMAX = 0.13D0 ! modal CFL max
             CASE(4)
-                muMAX = 0.168D0
-!                muMAX = 0.083D0
-!                muMAX  = 0.050D0
+!              muMAX = 0.168D0
+             muMAX = 0.083D0
+!             muMAX  = 0.050D0
+
+!              muMAX = 0.089D0 ! modal CFL max
             CASE(5)
-!                muMAX = 0.120D0
-                muMAX = 0.083D0
-!                muMAX  = 0.033D0
+!             muMAX = 0.120D0
+              muMAX = 0.083D0
+!             muMAX  = 0.033D0
+
+!              muMAX = 0.066D0 ! modal CFL max
             CASE(6)
-                muMAX = 0.0910D0
-!                muMAX  = 0.024D0
+              muMAX = 0.0910D0
+!             muMAX  = 0.024D0
             CASE(7)
-                muMAX = 0.0725D0
-!                muMAX  = 0.018D0
+              muMAX = 0.0725D0
+!             muMAX  = 0.018D0
             CASE(8)
-                muMAX = 0.0589D0
-!                muMAX  = 0.014D0
+              muMAX = 0.0589D0
+!             muMAX  = 0.014D0
             CASE(9)
-                muMAX = 0.0490D0
-!                muMAX  = 0.011D0
+              muMAX = 0.0490D0
+!             muMAX  = 0.011D0
         END SELECT
     ELSE
         muMAX = 0.707D0
@@ -101,7 +107,7 @@ PROGRAM EXECUTE
               transient = .FALSE.
         END SELECT
         	write(*,*) '======'
-        	CALL test2d_nodal(whichTest,startRes,startRes,2,3,2,muMAX) !1D0/(2D0*4D0-1D0) !0.3D0/sqrt(2d0)
+        	CALL test2d_nodal(whichTest,startRes,startRes,2,5,2,muMAX) !1D0/(2D0*4D0-1D0) !0.3D0/sqrt(2d0)
     ENDDO
     DEALLOCATE(testsVec,STAT=ierr)
 
@@ -144,11 +150,11 @@ CONTAINS
 
 		if(nlevel.lt.1) STOP 'nlev should be at least 1 in test2d_modal'
 
-		nmethod_final = 2
+		nmethod_final = 1
 		tmp_method = 0
-		tmp_method(1) = 3
-    tmp_method(2) = 5
-    !tmp_method(3) = 3
+		tmp_method(1) = 2
+    tmp_method(2) = 4
+    tmp_method(3) = 5
     !tmp_method(4) = 4
     !tmp_method(5) = 5
 
@@ -327,11 +333,11 @@ CONTAINS
 
 				! Set up timestep
         IF(doModalComparison .or. doZSMaxCFL) THEN
-            dxm = dxel
-            dym = dyel
+          dxm = dxel
+          dym = dyel
         ELSE
     			dxm = dxel*MINVAL(nodeSpacing)/2D0
-            dym = dyel*MINVAL(nodeSpacing)/2D0
+          dym = dyel*MINVAL(nodeSpacing)/2D0
         ENDIF
 
 				tmp_umax = MAXVAL(abs(u0))
