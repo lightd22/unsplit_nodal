@@ -22,10 +22,15 @@ cPROCESSOR := $(shell uname -m)
 SOURCES= nDGmod.f90 coeff_update.f90 nDGsweep.f90
 OBJECTS=$(SOURCES:.f90=.o)
 
+SUBDIR = n3/
+
 all: $(SOURCES) test_noddg_2d
 
 2d_test: test_noddg_2d
-	./test_noddg_2d
+	./test_noddg_2d 2>&1 | tee screen.out
+	cp screen.out _matrunc/$(SUBDIR)
+
+
 
 test_noddg_2d: $(OBJECTS) unsplit_2d_nodal.f90
 	$(F90) $(FFLAGS) $(OBJECTS) unsplit_2d_nodal.f90 \
@@ -36,3 +41,8 @@ clean:
 
 %.o : %.f90
 	$(F90) -c $(FFLAGS) $<
+
+#	cp screen.out _ndgzhshu/n5/pRefine/rescale
+#	cp screen.out _ndgsplzs/n5/pRefine/rescale
+#	cp screen.out _ndgzhshu/$(SUBDIR)
+#cp screen.out _ndgunlim/$(SUBDIR)

@@ -107,7 +107,7 @@ PROGRAM EXECUTE
               transient = .FALSE.
         END SELECT
         	write(*,*) '======'
-        	CALL test2d_nodal(whichTest,startRes,startRes,2,5,2,muMAX) !1D0/(2D0*4D0-1D0) !0.3D0/sqrt(2d0)
+        	CALL test2d_nodal(whichTest,startRes,startRes,2,3,2,muMAX) !1D0/(2D0*4D0-1D0) !0.3D0/sqrt(2d0)
     ENDDO
     DEALLOCATE(testsVec,STAT=ierr)
 
@@ -127,7 +127,7 @@ CONTAINS
 
 		LOGICAL :: dozshulimit,doStrangSplit,oddstep,dofctlimit
 
-		CHARACTER(len=40) :: cdf_out
+		CHARACTER(len=80) :: cdf_out,outdir
 
 		INTEGER :: nex,ney,nxiplot,netaplot
 		REAL(KIND=8) :: dxel,dyel,tfinal, tmp_umax, tmp_vmax, dxm, dym,dt, time,calculatedMu
@@ -141,8 +141,6 @@ CONTAINS
 
 
 		INTEGER :: i,j,l,m,k,s,t,n
-
-		CHARACTER(len=10) :: outdir
 		REAL(KIND=4), DIMENSION(2) :: tstart,tend
 		REAL(KIND=4) :: t0,tf,t1,t2
 
@@ -150,11 +148,11 @@ CONTAINS
 
 		if(nlevel.lt.1) STOP 'nlev should be at least 1 in test2d_modal'
 
-		nmethod_final = 1
+		nmethod_final = 2
 		tmp_method = 0
-		tmp_method(1) = 2
-    tmp_method(2) = 4
-    tmp_method(3) = 5
+		tmp_method(1) = 1
+    tmp_method(2) = 2
+    !tmp_method(3) = 3
     !tmp_method(4) = 4
     !tmp_method(5) = 5
 
@@ -169,19 +167,21 @@ CONTAINS
 				CASE(1)
 				  WRITE(*,*) '2D Nodal, Unsplit, No limiting'
 				  dozshulimit = .FALSE.
-				  outdir = '_ndgunlim/'
 				  norder = polyOrder
 				  nQuadNodes = norder !2*(norder+1)
           gqOrder = 1
           nZSnodes = 1
+          !outdir = '_ndgunlim/'
+          write(outdir,'(A,I1,A)') '_ndgunlim/n',norder,'/'
 				CASE(2)
 				  WRITE(*,*) '2D Nodal, Unsplit, Zhang and Shu Limiting'
 				  dozshulimit = .TRUE.
-				  outdir = '_ndgzhshu/'
 				  norder = polyOrder
           nQuadNodes = norder
 				  gqOrder = CEILING((polyOrder+1)/2D0 )-1
           nZSNodes = CEILING((polyOrder+3)/2D0 )-1
+          !outdir = '_ndgzhshu/n5/pRefine/rescale/'
+          write(outdir,'(A,I1,A)') '_ndgzhshu/n',norder,'/'
           WRITE(*,'(A,I1,A)') '   NOTE: Using ',gqOrder+1,' points for gauss quadrature nodes'
           WRITE(*,'(A,I1,A)') '   NOTE: Using ',nZSNodes+1,' GLL nodes for positivity rescaling.'
         CASE(3)
@@ -196,7 +196,7 @@ CONTAINS
           write(*,*) '2D Nodal, Strang Split, Zhang and Shu Limiting'
           dozshulimit = .TRUE.
           doStrangSplit = .TRUE.
-          outdir = '_ndgsplzs/'
+          outdir = '_ndgsplzs/n5/pRefine/rescale/'
           nOrder = polyOrder
           nQuadNodes = nOrder
           gqOrder = 1
@@ -213,6 +213,17 @@ CONTAINS
           nZSNodes = nQuadNodes
           outdir = '_ndgsplfc/'
           WRITE(*,'(A,I1,A)') '   NOTE: Using ',nZSNodes+1,' GLL nodes for positivity limiting.'
+        CASE(6)
+          WRITE(*,*) '2D Nodal, Unsplit, MA Truncation'
+          dozshulimit = .TRUE.
+          norder = polyOrder
+          nQuadNodes = norder
+          gqOrder = CEILING((polyOrder+1)/2D0 )-1
+          nZSNodes = CEILING((polyOrder+3)/2D0 )-1
+          !outdir =
+          write(outdir,'(A,I1,A)') '_matrunc/n',norder,'/'
+          WRITE(*,'(A,I1,A)') '   NOTE: Using ',gqOrder+1,' points for gauss quadrature nodes'
+          WRITE(*,'(A,I1,A)') '   NOTE: Using ',nZSNodes+1,' GLL nodes for positivity rescaling.'
 			END SELECT
       WRITE(*,*) '  N=',norder,'Uses a total of',(norder+1)**2,'Lagrange basis polynomials per element'
       WRITE(*,*) 'Output directory is: ',outdir
@@ -319,7 +330,7 @@ CONTAINS
             write(*,*) '-------- Warning DEBUG = .TRUE. --------'
         ENDIF ! DEBUG
         A0 = A
-				cdf_out = outdir // cdf_out
+				cdf_out = TRIM(outdir) // TRIM(cdf_out)
 
 				! Store element averages for conservation estimation
         DO i=1,nex
@@ -627,7 +638,7 @@ CONTAINS
         REAL(KIND=8), DIMENSION(1:2), INTENT(IN) :: xEdge,yEdge
         !Outputs
         REAL(KIND=8), DIMENSION(1:nex,1:ney,0:norder,0:norder), INTENT(OUT) :: A,u0,v0
-        CHARACTER(LEN=40), INTENT(OUT) :: cdf_out
+        CHARACTER(LEN=*), INTENT(OUT) :: cdf_out
         REAL(KIND=8), INTENT(OUT) :: tfinal
         !Local Variables
         REAL(KIND=8), DIMENSION(1:nex,0:norder), INTENT(OUT) :: xQuad
@@ -843,7 +854,7 @@ CONTAINS
 
 		! Inputs
 		INTEGER, INTENT(IN) :: norder,nQuadNodes,nex,ney,nxiplot,netaplot,stat,ilvl
-		CHARACTER(len=40), INTENT(IN) :: cdf_out
+		CHARACTER(len=*), INTENT(IN) :: cdf_out
 		REAL(KIND=8), INTENT(IN) :: tval_in,mu
 		REAL(KIND=8), DIMENSION(1:nex*nxiplot), INTENT(IN) :: x
 		REAL(KIND=8), DIMENSION(1:ney*netaplot), INTENT(IN) :: y

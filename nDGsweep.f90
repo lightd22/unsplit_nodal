@@ -94,8 +94,8 @@ SUBROUTINE nDGsweep(A,nelem,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u0,lagDer
 
       IF(dozshulimit) THEN
         IF(nZSnodes .eq. nQuadNodes) THEN
-!          CALL split_polyMod(Astar,gllWeights,nelem,nOrder,nQuadNodes,lagValsZS,0)
-         CALL split_polyMod(Astar,gllWeights,nelem,nOrder,nQuadNodes,lagValsZS,2)
+          CALL split_polyMod(Astar,gllWeights,nelem,nOrder,nQuadNodes,lagValsZS,0)
+!         CALL split_polyMod(Astar,gllWeights,nelem,nOrder,nQuadNodes,lagValsZS,2)
         ELSE
           CALL split_polyMod(Astar,quadZSWeights,nelem,nOrder,nZSNodes,lagValsZS,1)
         ENDIF

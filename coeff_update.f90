@@ -61,20 +61,20 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,d
   A1 = A
   DO stage=1,3
 
-     ! Update velocities (if necessary)
-     IF(transient) THEN
-          SELECT CASE(stage)
-              CASE(1)
-              		u = u0*vel_update(time)
-              		v = v0*vel_update(time)
-              CASE(2)
-                	u = u0*vel_update(time+dt)
-                	v = v0*vel_update(time+dt)
-              CASE(3)
-              		u = u0*vel_update(time+dt/2d0)
-            		v = v0*vel_update(time+dt/2d0)
-          END SELECT
-      ENDIF
+   ! Update velocities (if necessary)
+   IF(transient) THEN
+    SELECT CASE(stage)
+      CASE(1)
+      		u = u0*vel_update(time)
+      		v = v0*vel_update(time)
+      CASE(2)
+        	u = u0*vel_update(time+dt)
+        	v = v0*vel_update(time+dt)
+      CASE(3)
+      		u = u0*vel_update(time+dt/2d0)
+      		v = v0*vel_update(time+dt/2d0)
+    END SELECT
+  ENDIF
 
     ! Update fluxes
     CALL evalExpansion(quadVals,edgeValsNS,edgeValsEW,A1,nQuadNodes,norder,nex,ney,bctype)
@@ -107,7 +107,8 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,d
 		END SELECT
 
     IF(dozshulimit) THEN ! Do polynomial rescaling from Zhang and Shu (2010) (if necessary)
-        CALL polyMod(A1,gllWeights,lagGaussVal,nZSnodes,lagValsZS,nex,ney,nQuadNodes,norder,gqOrder,doZSMaxCFL)
+        !CALL polyMod(A1,gllWeights,lagGaussVal,nZSnodes,lagValsZS,nex,ney,nQuadNodes,norder,gqOrder,doZSMaxCFL,1)
+        CALL polyMod(A1,gllWeights,lagGaussVal,nZSnodes,lagValsZS,nex,ney,nQuadNodes,norder,gqOrder,doZSMaxCFL,2)
     ENDIF
 
     ENDDO !stage
@@ -298,24 +299,27 @@ SUBROUTINE evalExpansion(quadVals,edgeValsNS,edgeValsEW,Ain,nQuadNodes,norder,ne
 
 END SUBROUTINE evalExpansion
 
-SUBROUTINE polyMod(Ain,gllWeights,lagGaussVal,nZSnodes,lagValsZS,nex,ney,nQuadNodes,norder,gqOrder,doZSMaxCFL)
-    IMPLICIT NONE
-    ! Inputs
-    INTEGER, INTENT(IN) :: nex,ney,nQuadNodes,norder,gqOrder,nZSnodes
-	REAL(KIND=8), DIMENSION(1:nex,1:ney,0:norder,0:norder), INTENT(INOUT) :: Ain
-    REAL(KIND=8), DIMENSION(0:norder,0:gqorder), INTENT(IN) :: lagGaussVal
-    REAL(KIND=8), DIMENSION(0:norder,0:nZSnodes), INTENT(IN) :: lagValsZS
-    REAL(KIND=8), DIMENSION(0:nQuadNodes), INTENT(IN) :: gllWeights
-    LOGICAL, INTENT(IN) :: doZSMaxCFL
-    ! Outputs
-    ! Local variables
-    LOGICAL gllOnly
-	INTEGER :: i,j,p,q,l
-	REAL(KIND=8), DIMENSION(0:norder,0:norder) :: tmpArray
-    REAL(KIND=8) :: theta,elemAvg,valMin,eps
+SUBROUTINE polyMod(Ain,gllWeights,lagGaussVal,nZSnodes,lagValsZS,nex,ney,nQuadNodes,norder,gqOrder,doZSMaxCFL,stat)
+  IMPLICIT NONE
+  ! Inputs
+  INTEGER, INTENT(IN) :: nex,ney,nQuadNodes,norder,gqOrder,nZSnodes,stat
+  REAL(KIND=8), DIMENSION(1:nex,1:ney,0:norder,0:norder), INTENT(INOUT) :: Ain
+  REAL(KIND=8), DIMENSION(0:norder,0:gqorder), INTENT(IN) :: lagGaussVal
+  REAL(KIND=8), DIMENSION(0:norder,0:nZSnodes), INTENT(IN) :: lagValsZS
+  REAL(KIND=8), DIMENSION(0:nQuadNodes), INTENT(IN) :: gllWeights
+  LOGICAL, INTENT(IN) :: doZSMaxCFL
+  ! Outputs
+  ! Local variables
+  INTEGER :: i,j,p,q,l
+  REAL(KIND=8), DIMENSION(0:norder,0:norder) :: tmpArray
+  REAL(KIND=8) :: theta,elemAvg,valMin,eps,Mp,Mt
 
-    eps = epsilon(1d0)
+  eps = epsilon(1d0)
 
+  IF(stat == 1) THEN
+  ! ================================================================================
+  ! Do Zhang and Shu rescaling for non-negativity
+  ! ================================================================================
 	DO i=1,nex
 		DO j=1,ney
             ! Compute element average via quadrature
@@ -366,17 +370,6 @@ SUBROUTINE polyMod(Ain,gllWeights,lagGaussVal,nZSnodes,lagValsZS,nex,ney,nQuadNo
                     ENDDO !q
                 ENDDO !p
 
-!                DO p=0,nQuadNodes
-!                    DO q=0,gqOrder
-!                        valMin = MIN(valMin,SUM(Ain(i,j,p,:)*lagGaussVal(:,q)))
-!                    ENDDO !q
-!                ENDDO !p
-
-!                DO p=0,gqOrder
-!                    DO q=0,nQuadNodes
-!                        valMin = MIN(valMin,SUM(Ain(i,j,:,q)*lagGaussVal(:,p)))
-!                    ENDDO !q
-!                ENDDO !p
             ENDIF !doZSMaxCFL
             valMin = valMin - eps
 
@@ -387,6 +380,27 @@ SUBROUTINE polyMod(Ain,gllWeights,lagGaussVal,nZSnodes,lagValsZS,nex,ney,nQuadNo
             Ain(i,j,:,:) = theta*(Ain(i,j,:,:) - elemAvg) + elemAvg
 		ENDDO !j
 	ENDDO !i
+
+  ELSE
+    ! ================================================================================
+    ! Do 'mass aware' truncation at GLL nodes for non-negativity
+    ! ================================================================================
+    DO i=1,nex
+      DO j=1,ney
+        Mt = 0D0
+        Mp = 0D0
+        DO p=0,nOrder
+          DO q=0,nOrder
+            Mt = Mt+gllWeights(p)*gllWeights(q)*Ain(i,j,p,q)
+            Ain(i,j,p,q) = MAX(Ain(i,j,p,q),0D0) ! Truncate negative nodes
+            Mp = Mp+gllWeights(p)*gllWeights(q)*Ain(i,j,p,q)
+          ENDDO !q
+        ENDDO !p
+        theta = MAX(Mt,0D0)/MAX(Mp,TINY(1D0)) ! Linear reduction factor
+        AIn(i,j,:,:) = theta*AIn(i,j,:,:) ! Reduce remaining (positive) nodes by reduction factor
+      ENDDO!j
+    ENDDO !i
+  ENDIF
 END SUBROUTINE polyMod
 
 REAL(KIND=8) FUNCTION vel_update(t)
