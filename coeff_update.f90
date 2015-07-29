@@ -9,7 +9,7 @@
 ! By: Devin Light ; April 2014
 ! ==========================================
 
-SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,dyel,nex,ney,norder,nQuadNodes,&
+SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gqWeights,lagrangeDeriv,time,dt,dxel,dyel,nex,ney,norder,nQuadNodes,&
                         gqOrder,lagGaussVal,nZSnodes,lagValsZS,dozshulimit,transient,doZSMaxCFL)
   IMPLICIT NONE
 
@@ -21,6 +21,7 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,d
   INTEGER, INTENT(IN) :: nex,ney,norder,nQuadNodes,gqOrder,nZSnodes
   REAL(KIND=8), INTENT(IN) :: dxel,dyel,dt,time
   REAL(KIND=8), DIMENSION(0:nQuadNodes), INTENT(IN) :: gllNodes,gllWeights
+  DOUBLE PRECISION, DIMENSION(0:gqOrder), INTENT(IN) :: gqWeights
   REAL(KIND=8), DIMENSION(0:norder,0:nQuadNodes), INTENT(IN) :: lagrangeDeriv
   REAL(KIND=8), DIMENSION(0:norder,0:gqOrder), INTENT(IN) :: lagGaussVal
   REAL(KIND=8), DIMENSION(0:norder,0:nZSNodes), INTENT(IN) :: lagValsZS
@@ -40,13 +41,55 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,d
   REAL(KIND=8), DIMENSION(1:nex,0:ney+1,0:1,0:nQuadNodes) :: edgeValsNS
   REAL(KIND=8), DIMENSION(0:nex,1:ney,0:nQuadNodes) :: Fhat
   REAL(KIND=8), DIMENSION(1:nex,0:ney,0:nQuadNodes) :: Ghat
-  REAL(KIND=8) :: error,elemAvg
+  REAL(KIND=8) :: error
+  DOUBLE PRECISION, DIMENSION(1:nex,1:ney) :: elemAvg
 
 	REAL(KIND=8), DIMENSION(0:norder,0:norder) :: tmpArray
 
   REAL(KIND=4), DIMENSION(2) :: tstart,tend
   INTEGER :: bctype
 	REAL(KIND=4) :: t0,tf,t1
+
+  INTERFACE
+    SUBROUTINE limitMeanPositivity(coeffs,elemAvgs,lagGaussVal,gqWeights,nex,ney,nOrder,gqOrder)
+            ! Modifies approximating polynomial so that element mean value remains non-negative
+            ! after forward update according to Zhang and Shu (2010) Thm 5.2
+            USE testParameters
+            IMPLICIT NONE
+            ! Inputs
+            INTEGER, INTENT(IN) :: nex,ney,nOrder,gqOrder
+            DOUBLE PRECISION, DIMENSION(0:gqOrder), INTENT(IN) :: gqWeights
+            DOUBLE PRECISION, DIMENSION(0:norder,0:gqOrder), INTENT(IN) :: lagGaussVal
+            DOUBLE PRECISION, DIMENSION(1:nex,1:ney), INTENT(IN) :: elemAvgs
+            ! Outputs
+            DOUBLE PRECISION, DIMENSION(1:nex,1:ney,0:nOrder,0:nOrder), INTENT(INOUT) :: coeffs
+
+    END SUBROUTINE limitMeanPositivity
+
+    SUBROUTINE limitNodePositivity(coeffs,elemAvgs,gllWeights,nex,ney,nOrder)
+      ! Modifies approximating polynomial so that nodal values are non-negative for output
+      USE testParameters
+      IMPLICIT NONE
+      ! Inputs
+      INTEGER, INTENT(IN) :: nex,ney,nOrder
+      DOUBLE PRECISION, DIMENSION(1:nex,1:ney), INTENT(IN) :: elemAvgs
+      DOUBLE PRECISION, DIMENSION(0:nOrder), INTENT(IN) :: gllWeights
+      ! Outputs
+      DOUBLE PRECISION, DIMENSION(1:nex,1:ney,0:nOrder,0:nOrder), INTENT(INOUT) :: coeffs
+    END SUBROUTINE limitNodePositivity
+
+    SUBROUTINE computeAverages(elemAvgs,gllWeights,coeffs,nex,ney,nOrder,nQuad)
+      USE testParameters
+      IMPLICIT NONE
+      ! Inputs
+      INTEGER, INTENT(IN) :: nex,ney,nOrder,nQuad
+      DOUBLE PRECISION, DIMENSION(1:nex,1:ney,0:nOrder,0:nOrder), INTENT(IN) :: coeffs
+      DOUBLE PRECISION, DIMENSION(0:nQuad), INTENT(IN) :: gllWeights
+      ! Outputs
+      DOUBLE PRECISION, DIMENSION(1:nex,1:ney), INTENT(OUT) :: elemAvgs
+    END SUBROUTINE computeAverages
+  END INTERFACE
+
 
 !    bctype = 1 ! Outflow
     bctype = 0 ! Periodic
@@ -59,6 +102,7 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,d
   v = v0
 
   A1 = A
+
   DO stage=1,3
 
    ! Update velocities (if necessary)
@@ -73,8 +117,18 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,d
       CASE(3)
       		u = u0*vel_update(time+dt/2d0)
       		v = v0*vel_update(time+dt/2d0)
-    END SELECT
-  ENDIF
+     END SELECT
+    ENDIF
+
+    IF(dozshulimit) THEN
+      ! Check element averages
+      CALL computeAverages(elemAvg,gllWeights,A1,nex,ney,nOrder,nQuadNodes)
+      IF(MINVAL(elemAvg) .lt. 0d0) THEN
+        write(*,*) 'WARNING-- ELEMENT MEAN IS NEGATIVE BEFORE FWD STEP',stage
+        !write(*,*) elemAvg(i,j),i,j
+      ENDIF
+      CALL limitMeanPositivity(A1,elemAvg,lagGaussVal,gqWeights,nex,ney,nOrder,gqOrder)
+    ENDIF !dozshulimit
 
     ! Update fluxes
     CALL evalExpansion(quadVals,edgeValsNS,edgeValsEW,A1,nQuadNodes,norder,nex,ney,bctype)
@@ -106,27 +160,23 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,d
 			A1 = A/3d0 + 2D0*A2/3D0
 		END SELECT
 
-    IF(dozshulimit) THEN ! Do polynomial rescaling from Zhang and Shu (2010) (if necessary)
-        !CALL polyMod(A1,gllWeights,lagGaussVal,nZSnodes,lagValsZS,nex,ney,nQuadNodes,norder,gqOrder,doZSMaxCFL,1)
-        CALL polyMod(A1,gllWeights,lagGaussVal,nZSnodes,lagValsZS,nex,ney,nQuadNodes,norder,gqOrder,doZSMaxCFL,2)
-    ENDIF
+!    IF(dozshulimit) THEN ! Do polynomial rescaling from Zhang and Shu (2010) (if necessary)
+!        !CALL polyMod(A1,gllWeights,lagGaussVal,nZSnodes,lagValsZS,nex,ney,nQuadNodes,norder,gqOrder,doZSMaxCFL,1)
+!        CALL polyMod(A1,gllWeights,lagGaussVal,nZSnodes,lagValsZS,nex,ney,nQuadNodes,norder,gqOrder,doZSMaxCFL,2)
+!    ENDIF
 
     ENDDO !stage
     A = A1
 
     IF(dozshulimit) THEN
-    ! Compute element average via quadrature at next time level
-        DO i=1,nex
-            DO j=1,ney
-                DO l=0,nQuadNodes
-                    tmpArray(l,:) = gllWeights(l)*gllWeights(:)*A(i,j,l,:)
-                ENDDO!l
-                elemAvg = 0.25D0*SUM(tmpArray)
-            IF(elemAvg .lt. 0d0) THEN
-                write(*,*) 'WARNING-- ELEMENT MASS IS NEGATIVE AFTER TIME STEP'
-            ENDIF
-            ENDDO !j
-        ENDDO  !i
+      ! Compute element average via quadrature at next time level
+      CALL computeAverages(elemAvg,gllWeights,A,nex,ney,nOrder,nQuadNodes)
+      IF(minval(elemAvg) .lt. 0d0) THEN
+        write(*,*) 'WARNING-- ELEMENT MEAN IS NEGATIVE BEFORE LIMITING NODES'
+        !write(*,*) elemAvg(i,j),i,j
+        !STOP
+      ENDIF
+      CALL limitNodePositivity(A,elemAvg,gllWeights,nex,ney,nOrder)
     ENDIF !dozshulimit
 
 END SUBROUTINE coeff_update

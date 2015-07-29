@@ -19,21 +19,25 @@ cPROCESSOR := $(shell uname -m)
 #  endif
 #endif
 
-SOURCES= nDGmod.f90 coeff_update.f90 nDGsweep.f90
-OBJECTS=$(SOURCES:.f90=.o)
+SOURCES= nDGmod.f90 \
+				 coeff_update.f90 \
+				 nDGsweep.f90 \
+				 positivityLimit.f90 \
+				 computeAverages.f90
 
-SUBDIR = n3/
+MODULES= testParameters.f90
+OBJECTS=$(SOURCES:.f90=.o)
+MODOBJ=$(MODULES:.f90=.o)
+
+SUBDIR = n4/
 
 all: $(SOURCES) test_noddg_2d
 
 2d_test: test_noddg_2d
-	./test_noddg_2d 2>&1 | tee screen.out
-	cp screen.out _matrunc/$(SUBDIR)
+	./test_noddg_2d
 
-
-
-test_noddg_2d: $(OBJECTS) unsplit_2d_nodal.f90
-	$(F90) $(FFLAGS) $(OBJECTS) unsplit_2d_nodal.f90 \
+test_noddg_2d: $(MODOBJ) $(OBJECTS) unsplit_2d_nodal.f90
+	$(F90) $(FFLAGS) $(MODOBJ) $(OBJECTS) unsplit_2d_nodal.f90 \
 	         -o $@ $(LDFLAGS)
 
 clean:
@@ -46,3 +50,5 @@ clean:
 #	cp screen.out _ndgsplzs/n5/pRefine/rescale
 #	cp screen.out _ndgzhshu/$(SUBDIR)
 #cp screen.out _ndgunlim/$(SUBDIR)
+#cp screen.out _matrunc/$(SUBDIR)
+#./test_noddg_2d 2>&1 | tee screen.out

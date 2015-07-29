@@ -25,10 +25,6 @@ PROGRAM EXECUTE
 
     polyOrder = 4
 	  startRes = 12
-    testEnd = 1
-
-    ALLOCATE(testsVec(1:testEnd),STAT=ierr)
-    testsVec = (/ 5 /)
 
     IF(doZSMaxCFL) THEN
         SELECT CASE(polyOrder)
@@ -72,6 +68,10 @@ PROGRAM EXECUTE
     ENDIF ! doZSMaxCFL
     muMAX = muMAX*0.9!*.707
 
+    testEnd = 1
+    ALLOCATE(testsVec(1:testEnd),STAT=ierr)
+    testsVec = (/ 5 /)
+
     write(*,*) '======================================================'
     write(*,*) '             BEGINNING RUN OF NODAL TESTS             '
     write(*,'(A27,F7.4)') 'muMAX=',muMAX
@@ -105,14 +105,18 @@ PROGRAM EXECUTE
             CASE(8)
               write(*,*) 'TEST 8: Diagonal Adv. (u=v=1) of Gaussian Bump'
               transient = .FALSE.
+            CASE(9)
+              write(*,*) 'TEST 9: Diagonal Adv. (u=v=1) of cosinebell'
+              transient = .FALSE.
         END SELECT
         	write(*,*) '======'
-        	CALL test2d_nodal(whichTest,startRes,startRes,2,3,2,muMAX) !1D0/(2D0*4D0-1D0) !0.3D0/sqrt(2d0)
+        	CALL test2d_nodal(whichTest,startRes,startRes,2,3,2,muMAX)
     ENDDO
     DEALLOCATE(testsVec,STAT=ierr)
 
 CONTAINS
 	SUBROUTINE test2d_nodal(ntest,nex0,ney0,nscale,nlevel,noutput,maxcfl)
+    USE testParameters
 		IMPLICIT NONE
 		! Inputs
 		INTEGER, INTENT(IN) :: ntest,nex0,ney0,nscale,nlevel,noutput
@@ -131,6 +135,7 @@ CONTAINS
 
 		INTEGER :: nex,ney,nxiplot,netaplot
 		REAL(KIND=8) :: dxel,dyel,tfinal, tmp_umax, tmp_vmax, dxm, dym,dt, time,calculatedMu
+    DOUBLE PRECISION :: mux, muy
     REAL(KIND=8), DIMENSION(1:2) :: xEdge,yEdge
 		REAL(KIND=8), ALLOCATABLE, DIMENSION(:,:) :: Leg,lagrangeDeriv,lagGaussVal,C0,C,tmpArray,tmpErr,lagValsZS
     REAL(KIND=8), ALLOCATABLE, DIMENSION(:,:) :: xQuad, yQuad
@@ -148,11 +153,11 @@ CONTAINS
 
 		if(nlevel.lt.1) STOP 'nlev should be at least 1 in test2d_modal'
 
-		nmethod_final = 2
+		nmethod_final = 3
 		tmp_method = 0
 		tmp_method(1) = 1
     tmp_method(2) = 2
-    !tmp_method(3) = 3
+    tmp_method(3) = 6
     !tmp_method(4) = 4
     !tmp_method(5) = 5
 
@@ -176,6 +181,7 @@ CONTAINS
 				CASE(2)
 				  WRITE(*,*) '2D Nodal, Unsplit, Zhang and Shu Limiting'
 				  dozshulimit = .TRUE.
+          limitingMeth = 1
 				  norder = polyOrder
           nQuadNodes = norder
 				  gqOrder = CEILING((polyOrder+1)/2D0 )-1
@@ -216,6 +222,7 @@ CONTAINS
         CASE(6)
           WRITE(*,*) '2D Nodal, Unsplit, MA Truncation'
           dozshulimit = .TRUE.
+          limitingMeth = 2
           norder = polyOrder
           nQuadNodes = norder
           gqOrder = CEILING((polyOrder+1)/2D0 )-1
@@ -242,6 +249,8 @@ CONTAINS
             CALL gllquad_weights(nZSNodes,quadZSNodes,quadZSWeights)
             CALL gaussquad_nodes(gqOrder+1,gaussNodes)
             CALL gaussquad_weights(gqOrder+1,gaussNodes,gaussWeights)
+
+            zsMinWeight = MINVAL(quadZSWeights)
 
             nodeSpacing = gllNodes(1:nQuadNodes)-gllNodes(0:nQuadNodes-1)
 
@@ -341,6 +350,7 @@ CONTAINS
                 C0(i,j) = 0.25D0*dxel*dyel*SUM(tmpArray)
             ENDDO !j
         ENDDO !i
+        !write(*,*) 'Minimum element mean = ',MINVAL(C0)
 
 				! Set up timestep
         IF(doModalComparison .or. doZSMaxCFL) THEN
@@ -374,11 +384,25 @@ CONTAINS
         ENDIF
 
 				dt = tfinal/DBLE(nstep)
-        calculatedMu = maxval(sqrt(u0**2 + v0**2))*dt/min(dxm,dym)
+
+        ! mu1 and mu2 are used in Zhang and Shu (2010) mean positivity limiting
+        mux = tmp_umax*dt/dxel
+        muy = tmp_vmax*dt/dyel
+
+        mu1 = mux / (mux+muy)
+        mu2 = muy / (mux+muy)
+
+!        calculatedMu = maxval(sqrt(u0**2 + v0**2))*dt/min(dxm,dym)
 !                calculatedMu = maxval(sqrt(u0**2 + v0**2))*dt/min(dxel,dyel)
-        write(*,'(A,E10.4,A,E10.4,A,E10.4)') '  mu used = ',calculatedMu, &
-                                     '  mu2 used = ',maxval(sqrt(u0**2 + v0**2))*dt/min(dxel,dyel), &
-                                     '  dt/dx = ', dt/dxel
+!        write(*,'(A,E10.4,A,E10.4,A,E10.4)') '  mu used = ',calculatedMu, &
+!                                     '  mu2 used = ',maxval(sqrt(u0**2 + v0**2))*dt/min(dxel,dyel), &
+!                                     '  mux + muy = ', mux+muy
+
+        IF(doZSMaxCFL) THEN
+          calculatedMu = mux+muy
+        ELSE
+          calculatedMu = maxval(sqrt(u0**2 + v0**2))*dt/min(dxel,dyel)
+        ENDIF
 
 				IF(p .eq. 1) THEN ! Set up netCDF file
           write(*,*) 'Maximum velocity: |u| = ',maxval(abs(u0)),maxval(abs(v0))!maxval(abs(sqrt(u0**2+v0**2)))
@@ -422,12 +446,12 @@ CONTAINS
             ENDDO !n
 
         ELSE
-            ! Use coeff_update to update 2d elements
+        ! Use coeff_update to update 2d elements
 				DO n=1,nstep
 
 !                    A0 = A
           CALL CPU_TIME(t1)
-          CALL coeff_update(A,u0,v0,gllNodes,gllWeights,lagrangeDeriv,time,dt,dxel,dyel,nex,ney,&
+          CALL coeff_update(A,u0,v0,gllNodes,gllWeights,gaussWeights,lagrangeDeriv,time,dt,dxel,dyel,nex,ney,&
                             norder,nQuadNodes,gqOrder,lagGaussVal,nZSnodes,lagValsZS,&
                             dozshulimit,transient,doZSMaxCFL)
           CALL CPU_TIME(t2)
@@ -486,8 +510,8 @@ CONTAINS
 
 
   			if (p.eq.1) then
-      	   write(UNIT=6,FMT='(A125)') &
-'   nex    ney     E1       E2         Einf      convergence rate  overshoot  undershoot   cons        cputime  nstep   tf   '
+      	   write(UNIT=6,FMT='(A131)') &
+'   nex    ney     E1       E2         Einf      convergence rate  overshoot  undershoot   cons        cputime  nstep   tf   cfl   '
         	cnvg1 = 0.d0
         	cnvg2 = 0.d0
         	cnvgi = 0.d0
@@ -500,7 +524,7 @@ CONTAINS
                 cnvg1, cnvg2, cnvgi, &
                 tmp_qmax-MAXVAL(A0), &
                 MINVAL(A0)-tmp_qmin, &
-                    cons, tf, nstep,tfinal
+                    cons, tf, nstep,tfinal,calculatedMu
 
 				IF(p .eq. nlevel) THEN
                     ! Close netCDF files and write cputime vector
@@ -516,7 +540,7 @@ CONTAINS
 		ENDDO
 
 
-990    format(2i6,3e12.4,3f5.2,3e12.4,f8.2,i8,f8.2)
+990    format(2i6,3e12.4,3f5.2,3e12.4,f8.2,i8,f8.2,e12.4)
 
 	END SUBROUTINE test2d_nodal
 
@@ -675,7 +699,7 @@ CONTAINS
 
         ! Fill streamfunction array
         SELECT CASE(ntest)
-            CASE(1,8,10) ! uniform velocity u = v = 1
+        CASE(1,8:10) ! uniform velocity u = v = 1
                 DO i=1,nex
                     DO j=1,ney
                         DO k=0,norder
@@ -727,7 +751,7 @@ CONTAINS
 
         ! Initialize coefficent array
         SELECT CASE(ntest)
-            CASE(1) ! uniform advection of a sine wave
+        CASE(1) ! uniform advection of a sine wave
                 cdf_out = 'dg2d_sine_adv.nc'
                 tfinal = 10D0
                 DO i=1,nex
@@ -773,7 +797,7 @@ CONTAINS
                     ENDDO!j
                 ENDDO!i
 
-            CASE(5) ! standard cosbell deformation
+            CASE(5,9) ! standard cosbell deformation
 				cdf_out = 'dg2d_def_cosbell.nc'
 				tfinal = 5D0
                 A = 0D0
