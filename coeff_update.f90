@@ -51,18 +51,20 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gqWeights,lagrangeDeriv,time
 	REAL(KIND=4) :: t0,tf,t1
 
   INTERFACE
-    SUBROUTINE limitMeanPositivity(coeffs,elemAvgs,lagGaussVal,gqWeights,nex,ney,nOrder,gqOrder)
-            ! Modifies approximating polynomial so that element mean value remains non-negative
-            ! after forward update according to Zhang and Shu (2010) Thm 5.2
-            USE testParameters
-            IMPLICIT NONE
-            ! Inputs
-            INTEGER, INTENT(IN) :: nex,ney,nOrder,gqOrder
-            DOUBLE PRECISION, DIMENSION(0:gqOrder), INTENT(IN) :: gqWeights
-            DOUBLE PRECISION, DIMENSION(0:norder,0:gqOrder), INTENT(IN) :: lagGaussVal
-            DOUBLE PRECISION, DIMENSION(1:nex,1:ney), INTENT(IN) :: elemAvgs
-            ! Outputs
-            DOUBLE PRECISION, DIMENSION(1:nex,1:ney,0:nOrder,0:nOrder), INTENT(INOUT) :: coeffs
+    SUBROUTINE limitMeanPositivity(coeffs,elemAvgs,lagGaussVal,gqWeights,gllWeights,&
+                        nex,ney,nOrder,gqOrder,nQuad)
+        ! Modifies approximating polynomial so that element mean value remains non-negative
+        ! after forward update according to Zhang and Shu (2010) Thm 5.2
+        USE testParameters
+        IMPLICIT NONE
+        ! Inputs
+        INTEGER, INTENT(IN) :: nex,ney,nOrder,gqOrder,nQuad
+        DOUBLE PRECISION, DIMENSION(0:gqOrder), INTENT(IN) :: gqWeights
+        DOUBLE PRECISION, DIMENSION(0:nQuad), INTENT(IN) :: gllWeights
+        DOUBLE PRECISION, DIMENSION(0:norder,0:gqOrder), INTENT(IN) :: lagGaussVal
+        DOUBLE PRECISION, DIMENSION(1:nex,1:ney), INTENT(IN) :: elemAvgs
+        ! Outputs
+        DOUBLE PRECISION, DIMENSION(1:nex,1:ney,0:nOrder,0:nOrder), INTENT(INOUT) :: coeffs
 
     END SUBROUTINE limitMeanPositivity
 
@@ -127,7 +129,11 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gqWeights,lagrangeDeriv,time
         write(*,*) 'WARNING-- ELEMENT MEAN IS NEGATIVE BEFORE FWD STEP',stage
         !write(*,*) elemAvg(i,j),i,j
       ENDIF
-      CALL limitMeanPositivity(A1,elemAvg,lagGaussVal,gqWeights,nex,ney,nOrder,gqOrder)
+      IF(stage>1) THEN
+        CALL limitMeanPositivity(A1,elemAvg,lagGaussVal,gqWeights,gllWeights,&
+                                nex,ney,nOrder,gqOrder,nQuadNodes)
+!        CALL limitNodePositivity(A1,elemAvg,gllWeights,nex,ney,nOrder)
+      ENDIF
     ENDIF !dozshulimit
 
     ! Update fluxes

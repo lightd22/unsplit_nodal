@@ -4,7 +4,7 @@ MODULE testParameters
   ! Used to simplify passing of this information throughout subroutines and functions
   ! ========================================================================
   IMPLICIT NONE
-  INTEGER :: limitingMeth
+  INTEGER :: limitingMeth,magCount
   DOUBLE PRECISION :: mu1,mu2,zsMinWeight
   SAVE
 

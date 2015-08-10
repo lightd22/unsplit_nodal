@@ -23,8 +23,8 @@ PROGRAM EXECUTE
     doTimeTest = .FALSE.
     doZSMaxCFL = .TRUE.
 
-    polyOrder = 4
-	  startRes = 12
+    polyOrder = 5
+	  startRes = 10
 
     IF(doZSMaxCFL) THEN
         SELECT CASE(polyOrder)
@@ -50,14 +50,14 @@ PROGRAM EXECUTE
 
 !              muMAX = 0.066D0 ! modal CFL max
             CASE(6)
-              muMAX = 0.0910D0
-!             muMAX  = 0.024D0
+!              muMAX = 0.0910D0
+             muMAX  = 0.024D0
             CASE(7)
-              muMAX = 0.0725D0
-!             muMAX  = 0.018D0
+!              muMAX = 0.0725D0
+             muMAX  = 0.018D0
             CASE(8)
-              muMAX = 0.0589D0
-!             muMAX  = 0.014D0
+!              muMAX = 0.0589D0
+             muMAX  = 0.014D0
             CASE(9)
               muMAX = 0.0490D0
 !             muMAX  = 0.011D0
@@ -153,10 +153,10 @@ CONTAINS
 
 		if(nlevel.lt.1) STOP 'nlev should be at least 1 in test2d_modal'
 
-		nmethod_final = 3
+		nmethod_final = 2
 		tmp_method = 0
-		tmp_method(1) = 1
-    tmp_method(2) = 2
+		tmp_method(1) = 6
+    tmp_method(2) = 7
     tmp_method(3) = 6
     !tmp_method(4) = 4
     !tmp_method(5) = 5
@@ -228,9 +228,22 @@ CONTAINS
           gqOrder = CEILING((polyOrder+1)/2D0 )-1
           nZSNodes = CEILING((polyOrder+3)/2D0 )-1
           !outdir =
-          write(outdir,'(A,I1,A)') '_matrunc/n',norder,'/'
+          write(outdir,'(A,I1,A)') '_matrunc/n',norder,'/meanLimitingComparison/tmarMin/'
           WRITE(*,'(A,I1,A)') '   NOTE: Using ',gqOrder+1,' points for gauss quadrature nodes'
           WRITE(*,'(A,I1,A)') '   NOTE: Using ',nZSNodes+1,' GLL nodes for positivity rescaling.'
+        CASE(7)
+          WRITE(*,*) '2D Nodal, Unsplit, MA Truncation + mean limiting at ZSmin'
+          dozshulimit = .TRUE.
+          limitingMeth = 3
+          norder = polyOrder
+          nQuadNodes = norder
+          gqOrder = CEILING((polyOrder+1)/2D0 )-1
+          nZSNodes = CEILING((polyOrder+3)/2D0 )-1
+          !outdir =
+          write(outdir,'(A,I1,A)') '_matrunc/n',norder,'/meanLimitingComparison/zsMin/'
+          WRITE(*,'(A,I1,A)') '   NOTE: Using ',gqOrder+1,' points for gauss quadrature nodes'
+          WRITE(*,'(A,I1,A)') '   NOTE: Using ',nZSNodes+1,' GLL nodes for positivity rescaling.'
+
 			END SELECT
       WRITE(*,*) '  N=',norder,'Uses a total of',(norder+1)**2,'Lagrange basis polynomials per element'
       WRITE(*,*) 'Output directory is: ',outdir
@@ -292,8 +305,9 @@ CONTAINS
       ENDIF
 
 			DO p=1,nlevel
+        magCount = 0
 
-                CALL CPU_TIME(t0)
+        CALL CPU_TIME(t0)
 
 				nex = nex0*nscale**(p-1)
 				ney = ney0*nscale**(p-1)
@@ -524,7 +538,7 @@ CONTAINS
                 cnvg1, cnvg2, cnvgi, &
                 tmp_qmax-MAXVAL(A0), &
                 MINVAL(A0)-tmp_qmin, &
-                    cons, tf, nstep,tfinal,calculatedMu
+                    cons, tf, nstep,tfinal,calculatedMu,magCount
 
 				IF(p .eq. nlevel) THEN
                     ! Close netCDF files and write cputime vector
@@ -540,7 +554,7 @@ CONTAINS
 		ENDDO
 
 
-990    format(2i6,3e12.4,3f5.2,3e12.4,f8.2,i8,f8.2,e12.4)
+990    format(2i6,3e12.4,3f5.2,3e12.4,f8.2,i8,f8.2,e12.4,i6)
 
 	END SUBROUTINE test2d_nodal
 
