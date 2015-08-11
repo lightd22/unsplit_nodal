@@ -155,7 +155,7 @@ CONTAINS
 
 		nmethod_final = 1
 		tmp_method = 0
-		tmp_method(1) = 6
+		tmp_method(1) = 1
     tmp_method(2) = 7
     tmp_method(3) = 6
     !tmp_method(4) = 4
