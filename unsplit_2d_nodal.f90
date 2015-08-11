@@ -27,44 +27,44 @@ PROGRAM EXECUTE
 	  startRes = 10
 
     IF(doZSMaxCFL) THEN
-        SELECT CASE(polyOrder)
-            CASE(2)
-              muMAX = 0.450D0
-!              muMAX  = 0.167D0
-            CASE(3)
-!              muMAX = 0.255D0
-              muMAX  = 0.167D0
-!              muMAX  = 0.083D0
+      SELECT CASE(polyOrder)
+        CASE(2)
+          muMAX = 0.450D0
+!          muMAX  = 0.167D0
+        CASE(3)
+!          muMAX = 0.255D0
+          muMAX  = 0.167D0
+!          muMAX  = 0.083D0
 
-!              muMAX = 0.13D0 ! modal CFL max
-            CASE(4)
-!              muMAX = 0.168D0
-             muMAX = 0.083D0
-!             muMAX  = 0.050D0
+!          muMAX = 0.13D0 ! modal CFL max
+        CASE(4)
+!         muMAX = 0.168D0
+         muMAX = 0.083D0
+!         muMAX  = 0.050D0
 
-!              muMAX = 0.089D0 ! modal CFL max
-            CASE(5)
-!             muMAX = 0.120D0
-              muMAX = 0.083D0
-!             muMAX  = 0.033D0
+!        muMAX = 0.089D0 ! modal CFL max
+        CASE(5)
+!         muMAX = 0.120D0
+          muMAX = 0.083D0
+!         muMAX  = 0.033D0
 
-!              muMAX = 0.066D0 ! modal CFL max
-            CASE(6)
-!              muMAX = 0.0910D0
-             muMAX  = 0.024D0
-            CASE(7)
-!              muMAX = 0.0725D0
-             muMAX  = 0.018D0
-            CASE(8)
-!              muMAX = 0.0589D0
-             muMAX  = 0.014D0
-            CASE(9)
-              muMAX = 0.0490D0
-!             muMAX  = 0.011D0
-        END SELECT
+!          muMAX = 0.066D0 ! modal CFL max
+        CASE(6)
+!        muMAX = 0.0910D0
+         muMAX  = 0.024D0
+        CASE(7)
+!        muMAX = 0.0725D0
+         muMAX  = 0.018D0
+        CASE(8)
+!        muMAX = 0.0589D0
+         muMAX  = 0.014D0
+        CASE(9)
+          muMAX = 0.0490D0
+!         muMAX  = 0.011D0
+      END SELECT
     ELSE
-        muMAX = 0.707D0
-!        muMAX = 1.0D0
+      muMAX = 0.707D0
+!      muMAX = 1.0D0
     ENDIF ! doZSMaxCFL
     muMAX = muMAX*0.9!*.707
 
@@ -78,39 +78,39 @@ PROGRAM EXECUTE
     write(*,*) '======================================================'
 
     DO nTest=1,testEnd
-        whichTest = testsVec(nTest)
-        write(*,*) '======'
-        SELECT CASE(whichTest)
-            CASE(100)
-              write(*,*) 'TEST 0: Consistency test'
-              transient = .TRUE.
-            CASE(1)
-             	write(*,*) 'TEST 1: Uniform advection (u=v=1)'
-            	transient = .FALSE.
-            CASE(2)
-            	write(*,*) 'TEST 2: Solid body rotation of cylinder'
-              transient = .FALSE.
-            CASE(3)
-            	write(*,*) 'TEST 3: Solid body rotation of cylinder (modified for frank)'
-              transient = .FALSE.
-            CASE(5)
-              write(*,*) 'TEST 5: LeVeque Cosbell Deformation Test'
-              transient = .TRUE.
-            CASE(6)
-            	write(*,*) 'TEST 6: LeVeque Smoother Cosbell Deformation Test'
-            	transient = .TRUE.
-            CASE(7)
-            	write(*,*) 'TEST 7: Slotted cylinder deformation'
-              transient = .TRUE.
-            CASE(8)
-              write(*,*) 'TEST 8: Diagonal Adv. (u=v=1) of Gaussian Bump'
-              transient = .FALSE.
-            CASE(9)
-              write(*,*) 'TEST 9: Diagonal Adv. (u=v=1) of cosinebell'
-              transient = .FALSE.
-        END SELECT
-        	write(*,*) '======'
-        	CALL test2d_nodal(whichTest,startRes,startRes,2,3,2,muMAX)
+      whichTest = testsVec(nTest)
+      write(*,*) '======'
+      SELECT CASE(whichTest)
+        CASE(100)
+          write(*,*) 'TEST 0: Consistency test'
+          transient = .TRUE.
+        CASE(1)
+          write(*,*) 'TEST 1: Uniform advection (u=v=1)'
+        	transient = .FALSE.
+        CASE(2)
+        	write(*,*) 'TEST 2: Solid body rotation of cylinder'
+          transient = .FALSE.
+        CASE(3)
+        	write(*,*) 'TEST 3: Solid body rotation of cylinder (modified for frank)'
+          transient = .FALSE.
+        CASE(5)
+          write(*,*) 'TEST 5: LeVeque Cosbell Deformation Test'
+          transient = .TRUE.
+        CASE(6)
+        	write(*,*) 'TEST 6: LeVeque Smoother Cosbell Deformation Test'
+        	transient = .TRUE.
+        CASE(7)
+        	write(*,*) 'TEST 7: Slotted cylinder deformation'
+          transient = .TRUE.
+        CASE(8)
+          write(*,*) 'TEST 8: Diagonal Adv. (u=v=1) of Gaussian Bump'
+          transient = .FALSE.
+        CASE(9)
+          write(*,*) 'TEST 9: Diagonal Adv. (u=v=1) of cosinebell'
+          transient = .FALSE.
+      END SELECT
+    	write(*,*) '======'
+    	CALL test2d_nodal(whichTest,startRes,startRes,2,3,2,muMAX)
     ENDDO
     DEALLOCATE(testsVec,STAT=ierr)
 
@@ -253,19 +253,19 @@ CONTAINS
                     lagrangeDeriv(0:norder,0:nQuadNodes),tmpArray(0:norder,0:norder),nodeSpacing(0:nQuadNodes-1),&
                     lagGaussVal(0:norder,0:gqOrder),lambda(0:nQuadNodes),STAT=ierr)
 
-            ALLOCATE(quadZSNodes(0:nZSNodes),quadZSWeights(0:nZSNodes),lagValsZS(0:norder,0:nZSNodes),STAT=ierr)
+      ALLOCATE(quadZSNodes(0:nZSNodes),quadZSWeights(0:nZSNodes),lagValsZS(0:norder,0:nZSNodes),STAT=ierr)
 
-        		! --  Compute Gauss-Lobatto quadrature nodes and weights
-            CALL gllquad_nodes(nQuadNodes,gllNodes)
-            CALL gllquad_weights(nQuadNodes,gllNodes,gllWeights)
-            CALL gllquad_nodes(nZSNodes,quadZSNodes)
-            CALL gllquad_weights(nZSNodes,quadZSNodes,quadZSWeights)
-            CALL gaussquad_nodes(gqOrder+1,gaussNodes)
-            CALL gaussquad_weights(gqOrder+1,gaussNodes,gaussWeights)
+  		! --  Compute Gauss-Lobatto quadrature nodes and weights
+      CALL gllquad_nodes(nQuadNodes,gllNodes)
+      CALL gllquad_weights(nQuadNodes,gllNodes,gllWeights)
+      CALL gllquad_nodes(nZSNodes,quadZSNodes)
+      CALL gllquad_weights(nZSNodes,quadZSNodes,quadZSWeights)
+      CALL gaussquad_nodes(gqOrder+1,gaussNodes)
+      CALL gaussquad_weights(gqOrder+1,gaussNodes,gaussWeights)
 
-            zsMinWeight = MINVAL(quadZSWeights)
+      zsMinWeight = MINVAL(quadZSWeights)
 
-            nodeSpacing = gllNodes(1:nQuadNodes)-gllNodes(0:nQuadNodes-1)
+      nodeSpacing = gllNodes(1:nQuadNodes)-gllNodes(0:nQuadNodes-1)
 
 			nxiplot = norder+1
 			netaplot = norder+1
@@ -281,17 +281,17 @@ CONTAINS
       ! Fill maxtris of basis polynomials evaluated at Gauss quadrature nodes (used in Zhang and Shu Limiter)
       CALL baryWeights(lambda,gllnodes,nQuadNodes)
       DO i=0,norder
-          DO j=0,gqOrder
-              lagGaussVal(i,j) = lagrange(gaussNodes(j),i,nQuadNodes,gllNodes,lambda)
-          ENDDO !j
+        DO j=0,gqOrder
+          lagGaussVal(i,j) = lagrange(gaussNodes(j),i,nQuadNodes,gllNodes,lambda)
+        ENDDO !j
       ENDDO !i
 
       lagValsZS = 0D0
       ! -- Evaluate Basis polynomials at quad nodes for Zhang & Shu positivity limiting (edge nodes fixed at -1 and +1)
       DO i=0,norder
-          DO j=0,nZSNodes
-              lagValsZS(i,j) = lagrange(quadZSNodes(j),i,nQuadNodes,gllNodes,lambda)
-          ENDDO!l
+        DO j=0,nZSNodes
+          lagValsZS(i,j) = lagrange(quadZSNodes(j),i,nQuadNodes,gllNodes,lambda)
+        ENDDO!l
       ENDDO!k
 
       xEdge(1) = 0D0
@@ -301,7 +301,7 @@ CONTAINS
 
       write(*,*) 'Domain: [',xEdge(1),',',xEdge(2),'].'
       IF(doTimeTest .or. DEBUG) THEN
-          write(*,*) 'Warning: overwritting number of outputs!'
+        write(*,*) 'Warning: overwritting number of outputs!'
       ENDIF
 
 			DO p=1,nlevel
@@ -314,16 +314,16 @@ CONTAINS
 				dxel = (xEdge(2)-xEdge(1))/DBLE(nex)
 				dyel = (yEdge(2)-yEdge(1))/DBLE(ney)
 
-				ALLOCATE(x_elcent(1:nex),y_elcent(1:ney),A(1:nex,1:ney,0:norder,0:norder),A0(1:nex,1:ney,0:norder,0:norder),&
-                         u0(1:nex,1:ney,0:nQuadNodes,0:nQuadNodes), v0(1:nex,1:ney,0:nQuadNodes,0:nQuadNodes), &
-						 C0(1:nex,1:ney), C(1:nex,1:ney), xplot(1:nxiplot*nex),yplot(1:netaplot*ney),&
-                         xQuad(1:nex,0:nQuadNodes),yQuad(1:ney,0:nQuadNodes), STAT=ierr)
+				ALLOCATE(x_elcent(1:nex),y_elcent(1:ney),A(0:norder,0:norder,1:nex,1:ney),A0(0:norder,0:norder,1:nex,1:ney),&
+                 u0(0:nQuadNodes,0:nQuadNodes,1:nex,1:ney), v0(0:nQuadNodes,0:nQuadNodes,1:nex,1:ney), &
+			           C0(1:nex,1:ney), C(1:nex,1:ney), xplot(1:nxiplot*nex),yplot(1:netaplot*ney),&
+                 xQuad(0:nQuadNodes,1:nex),yQuad(0:nQuadNodes,1:ney), STAT=ierr)
 
 				! Elements are ordered row-wise within the domain
 
-				! A(i,j,l,m) : Coefficent array ; (i,j) = element, (l,m) = which Lagrange polynomial (q_ij = SUM(SUM(A(i,j,l,m)*L_l(xi)*L_m(eta))))
+				! A(l,m,i,j) : Coefficent array ; (i,j) = element, (l,m) = which Lagrange polynomial (q_ij = SUM(SUM(A(i,j,l,m)*L_l(xi)*L_m(eta))))
         ! This is also the solution at the interpolating GLL points
-				! u(i,j,l,m), v(i,j,l,m) : Horizontal/vertical vel. array ; (i,j) = element, (l,m) = horiz,vertical location
+				! u(l,m,i,j), v(l,m,i,j) : Horizontal/vertical vel. array ; (i,j) = element, (l,m) = horiz,vertical location
 
 				! Initialize x- and y- grids and xi- and eta- plotting grids
 				x_elcent(1) = xEdge(1)+dxel/2D0
@@ -357,12 +357,12 @@ CONTAINS
 
 				! Store element averages for conservation estimation
         DO i=1,nex
-            DO j=1,ney
-                DO l=0,norder
-                    tmpArray(l,:) = gllWeights(l)*gllWeights(:)*A0(i,j,l,:)
-                ENDDO!l
-                C0(i,j) = 0.25D0*dxel*dyel*SUM(tmpArray)
-            ENDDO !j
+          DO j=1,ney
+            DO l=0,norder
+              tmpArray(l,:) = gllWeights(l)*gllWeights(:)*A0(l,:,i,j)
+            ENDDO!l
+            C0(i,j) = 0.25D0*dxel*dyel*SUM(tmpArray)
+          ENDDO !j
         ENDDO !i
         !write(*,*) 'Minimum element mean = ',MINVAL(C0)
 
@@ -379,22 +379,22 @@ CONTAINS
 				tmp_vmax = MAXVAL(abs(v0))
 
         IF(noutput .eq. -1) THEN
-				nstep = CEILING((tfinal/maxcfl)*(maxval(sqrt(u0**2 + v0**2))/min(dxm,dym)))
+		      nstep = CEILING((tfinal/maxcfl)*(maxval(sqrt(u0**2 + v0**2))/min(dxm,dym)))
 			    nout = nstep
         ELSE IF(doModalComparison .or. doStrangSplit) THEN
-            nstep = noutput*CEILING( (tfinal/maxcfl)*MAX(tmp_umax/dxm,tmp_vmax/dym)/DBLE(noutput) )
-            nout = noutput
+          nstep = noutput*CEILING( (tfinal/maxcfl)*MAX(tmp_umax/dxm,tmp_vmax/dym)/DBLE(noutput) )
+          nout = noutput
         ELSE IF(doZSMaxCFL) THEN
-            nstep = noutput*CEILING( (tfinal/maxcfl)*(tmp_umax/dxm + tmp_vmax/dym)/DBLE(noutput) )
-            nout = noutput
+          nstep = noutput*CEILING( (tfinal/maxcfl)*(tmp_umax/dxm + tmp_vmax/dym)/DBLE(noutput) )
+          nout = noutput
         ELSE
-        		nstep = noutput*CEILING( (tfinal/maxcfl)*(maxval(sqrt(u0**2 + v0**2))/min(dxm,dym))/DBLE(noutput) )
-        		nout = noutput
+      		nstep = noutput*CEILING( (tfinal/maxcfl)*(maxval(sqrt(u0**2 + v0**2))/min(dxm,dym))/DBLE(noutput) )
+      		nout = noutput
         ENDIF !noutput
 
         IF(doTimeTest .or. DEBUG) THEN
-            nout = noutput
-            nstep = 800*nscale**(p-1)
+          nout = noutput
+          nstep = 800*nscale**(p-1)
         ENDIF
 
 				dt = tfinal/DBLE(nstep)
@@ -403,8 +403,8 @@ CONTAINS
         mux = tmp_umax*dt/dxel
         muy = tmp_vmax*dt/dyel
 
-        mu1 = mux / (mux+muy)
-        mu2 = muy / (mux+muy)
+        mu1 = mux/(mux+muy)
+        mu2 = muy/(mux+muy)
 
 !        calculatedMu = maxval(sqrt(u0**2 + v0**2))*dt/min(dxm,dym)
 !                calculatedMu = maxval(sqrt(u0**2 + v0**2))*dt/min(dxel,dyel)
@@ -421,7 +421,7 @@ CONTAINS
 				IF(p .eq. 1) THEN ! Set up netCDF file
           write(*,*) 'Maximum velocity: |u| = ',maxval(abs(u0)),maxval(abs(v0))!maxval(abs(sqrt(u0**2+v0**2)))
 					CALL output2d(A0,xplot,yplot,gllWeights,gllNodes,nex,ney,norder,nQuadNodes,nxiplot,netaplot,&
-                                  tfinal,calculatedMu,cdf_out,nout,-1)
+                        tfinal,calculatedMu,cdf_out,nout,-1)
 				ENDIF
 
         ! Set up variables for this value of p ; Write x, y, and initial conditions
@@ -434,30 +434,29 @@ CONTAINS
 				time = 0D0
 
         IF(doStrangSplit) THEN
-            ! For Strang Split nodal methods, use strangSplitUpdate and nDGsweep to update nodal values
-            oddstep = .TRUE.
-            DO n=1,nstep
+          ! For Strang Split nodal methods, use strangSplitUpdate and nDGsweep to update nodal values
+          oddstep = .TRUE.
+          DO n=1,nstep
+            CALL CPU_TIME(t1)
+            CALL strangSplitUpdate(A,u0,v0,gllNodes,gllWeights,time,lagrangeDeriv,&
+                         dt,dxel,dyel,nOrder,nQuadNodes,nex,ney,oddstep,transient,&
+                         dozshulimit,dofctlimit,nZSnodes,quadZSWeights,lagValsZS,n)
+            CALL CPU_TIME(t2)
+            time = time + dt
 
-                CALL CPU_TIME(t1)
-                CALL strangSplitUpdate(A,u0,v0,gllNodes,gllWeights,time,lagrangeDeriv,&
-                             dt,dxel,dyel,nOrder,nQuadNodes,nex,ney,oddstep,transient,&
-                             dozshulimit,dofctlimit,nZSnodes,quadZSWeights,lagValsZS,n)
-                CALL CPU_TIME(t2)
-                time = time + dt
+      	    IF((MOD(n,nstep/nout).eq.0).OR.(n.eq.nstep)) THEN
+  			     ! Write output
+             CALL output2d(A,xplot,yplot,gllWeights,gllNodes,nex,ney,norder,nQuadNodes,&
+                            nxiplot,netaplot,time,calculatedMu,cdf_out,p,2)
+            ENDIF
 
-  	        	    IF((MOD(n,nstep/nout).eq.0).OR.(n.eq.nstep)) THEN
-  	        			! Write output
-  	   				CALL output2d(A,xplot,yplot,gllWeights,gllNodes,nex,ney,norder,nQuadNodes,&
-                                  nxiplot,netaplot,time,calculatedMu,cdf_out,p,2)
-                  ENDIF
+            ! Track solution max and min throughout integration
+            tmp_qmax = MAX(tmp_qmax,MAXVAL(A))
+            tmp_qmin = MIN(tmp_qmin,MINVAL(A))
 
-                ! Track solution max and min throughout integration
-                tmp_qmax = MAX(tmp_qmax,MAXVAL(A))
-                tmp_qmin = MIN(tmp_qmin,MINVAL(A))
+            oddstep = .NOT. oddstep
 
-                oddstep = .NOT. oddstep
-
-            ENDDO !n
+          ENDDO !n
 
         ELSE
         ! Use coeff_update to update 2d elements
@@ -475,10 +474,10 @@ CONTAINS
     			IF((MOD(n,nstep/nout).eq.0).OR.(n.eq.nstep)) THEN
     				! Write output
     				CALL output2d(A,xplot,yplot,gllWeights,gllNodes,nex,ney,norder,nQuadNodes,&
-                                  nxiplot,netaplot,time,calculatedMu,cdf_out,p,2)
+                          nxiplot,netaplot,time,calculatedMu,cdf_out,p,2)
     			ENDIF
 
-                ! Track solution max and min throughout integration
+          ! Track solution max and min throughout integration
     			tmp_qmax = MAX(tmp_qmax,MAXVAL(A))
     			tmp_qmin = MIN(tmp_qmin,MINVAL(A))
 
@@ -489,34 +488,34 @@ CONTAINS
 
         ! Store element averages for conservation estimation
         DO i=1,nex
-            DO j=1,ney
-                DO l=0,norder
-                    tmpArray(l,:) = gllWeights(l)*gllWeights(:)*A(i,j,l,:)
-                ENDDO!l
-                C(i,j) = 0.25D0*dxel*dyel*SUM(tmpArray)
-            ENDDO !j
+          DO j=1,ney
+            DO l=0,norder
+              tmpArray(l,:) = gllWeights(l)*gllWeights(:)*A(l,:,i,j)
+            ENDDO!l
+            C(i,j) = 0.25D0*dxel*dyel*SUM(tmpArray)
+          ENDDO !j
         ENDDO !i
         cons = SUM(C-C0)/DBLE(nex*ney)
 
         ! Compute errors
         ALLOCATE(tmpErr(1:nex,1:ney),STAT=ierr)
         DO i=1,nex
-            DO j=1,ney
-                DO l=0,norder
-                    tmpArray(l,:) = gllWeights(l)*gllWeights(:)*ABS(A(i,j,l,:)-A0(i,j,l,:))
-                ENDDO!l
-                tmpErr(i,j) = SUM(tmpArray)
-            ENDDO !j
+          DO j=1,ney
+            DO l=0,norder
+              tmpArray(l,:) = gllWeights(l)*gllWeights(:)*ABS(A(l,:,i,j)-A0(l,:,i,j))
+            ENDDO!l
+            tmpErr(i,j) = SUM(tmpArray)
+          ENDDO !j
         ENDDO !i
         e1(p) = 0.25D0*dxel*dyel*SUM(tmpErr)
 
         DO i=1,nex
-            DO j=1,ney
-                DO l=0,norder
-                    tmpArray(l,:) = gllWeights(l)*gllWeights(:)*(ABS(A(i,j,l,:)-A0(i,j,l,:)))**2
-                ENDDO!l
-                tmpErr(i,j) = SUM(tmpArray)
-            ENDDO !j
+          DO j=1,ney
+            DO l=0,norder
+              tmpArray(l,:) = gllWeights(l)*gllWeights(:)*(ABS(A(l,:,i,j)-A0(l,:,i,j)))**2
+            ENDDO!l
+            tmpErr(i,j) = SUM(tmpArray)
+          ENDDO !j
         ENDDO !i
         e2(p) = sqrt(0.25D0*dxel*dyel*SUM(tmpErr))
 
@@ -538,12 +537,12 @@ CONTAINS
                 cnvg1, cnvg2, cnvgi, &
                 tmp_qmax-MAXVAL(A0), &
                 MINVAL(A0)-tmp_qmin, &
-                    cons, tf, nstep,tfinal,calculatedMu,magCount
+                cons, tf, nstep,tfinal,calculatedMu,magCount
 
 				IF(p .eq. nlevel) THEN
-                    ! Close netCDF files and write cputime vector
-                    CALL output2d(A,xplot,yplot,gllWeights,gllNodes,nex,ney,norder,nQuadNodes,nxiplot,netaplot,time,&
-                                  calculatedMu,cdf_out,p,1)
+          ! Close netCDF files and write cputime vector
+          CALL output2d(A,xplot,yplot,gllWeights,gllNodes,nex,ney,norder,nQuadNodes,nxiplot,netaplot,time,&
+                        calculatedMu,cdf_out,p,1)
 				ENDIF
 				DEALLOCATE(A,A0,x_elcent,y_elcent,xplot,yplot,u0,v0,tmpErr,xQuad,yQuad,C,C0,STAT=ierr)
 			ENDDO
@@ -575,14 +574,14 @@ CONTAINS
         ! Inputs
         INTEGER, INTENT(IN) :: nOrder,nQuadNodes,nex,ney,nZSnodes,nstep
         REAL(KIND=8), INTENT(IN) :: dt,dxel,dyel,time
-        REAL(KIND=8), DIMENSION(1:nex,1:ney,0:nQuadNodes,0:nQuadNodes), INTENT(IN) :: u0,v0
+        REAL(KIND=8), DIMENSION(0:nQuadNodes,0:nQuadNodes,1:nex,1:ney), INTENT(IN) :: u0,v0
         REAL(KIND=8), DIMENSION(0:norder,0:nQuadNodes), INTENT(IN) :: lagrangeDeriv
         REAL(KIND=8), DIMENSION(0:nQuadNodes), INTENT(IN) :: gllNodes,gllWeights
         REAL(KIND=8), DIMENSION(0:nZSnodes), INTENT(IN) :: quadZSWeights
         REAL(KIND=8), DIMENSION(0:nOrder,0:nZSnodes), INTENT(IN) :: lagValsZS
         LOGICAL, INTENT(IN) :: oddstep,dozshulimit,dofctlimit,transient
         ! Outputs
-        REAL(KIND=8), DIMENSION(1:nex,1:ney,0:nOrder,0:nOrder), INTENT(INOUT) :: A
+        REAL(KIND=8), DIMENSION(0:nOrder,0:nOrder,1:nex,1:ney), INTENT(INOUT) :: A
         ! Local variables
         INTEGER :: i,j,k,whichEl,whichLvl,totalLvls
         REAL(KIND=8), DIMENSION(1:nex,0:nOrder) :: A1dx
@@ -591,73 +590,72 @@ CONTAINS
         REAL(KIND=8), DIMENSION(1:ney,0:nQuadNodes) :: v1dy
 
         IF(oddstep) THEN
-            ! ===================================
-            ! Perform sweeps in x-direction first
-            ! ===================================
-            totalLvls = ney*(nOrder+1)
-            DO i=0,totalLvls-1
-                whichEl = i/(nOrder+1) + 1
-                whichLvl = MOD(i,nOrder+1)
-                A1dx(1:nex,:) = A(1:nex,whichEl,:,whichLvl)
-                u1dx(1:nex,:) = u0(1:nex,whichEl,:,whichLvl)
+          ! ===================================
+          ! Perform sweeps in x-direction first
+          ! ===================================
+          totalLvls = ney*(nOrder+1)
+          DO i=0,totalLvls-1
+            whichEl = i/(nOrder+1) + 1
+            whichLvl = MOD(i,nOrder+1)
+            A1dx(1:nex,:) = A(:,whichLvl,1:nex,whichEl)
+            u1dx(1:nex,:) = u0(:,whichLvl,1:nex,whichEl)
 
-                IF(dozshulimit .AND. nstep .eq. 1) THEN
-                    ! Modify ICs according to Z&S limiting
-                    IF(nZSnodes .eq. nQuadNodes) THEN
-                        CALL split_polyMod(A1dx,gllWeights,nex,nOrder,nQuadNodes,lagValsZS,0)
-                    ELSE
-                        CALL split_polyMod(A1dx,quadZSWeights,nex,nOrder,nZSNodes,lagValsZS,1)
-                    ENDIF
-                ENDIF
+            IF(dozshulimit .AND. nstep .eq. 1) THEN
+              ! Modify ICs according to Z&S limiting
+              IF(nZSnodes .eq. nQuadNodes) THEN
+                CALL split_polyMod(A1dx,gllWeights,nex,nOrder,nQuadNodes,lagValsZS,0)
+              ELSE
+                CALL split_polyMod(A1dx,quadZSWeights,nex,nOrder,nZSNodes,lagValsZS,1)
+              ENDIF
+            ENDIF
 
-                CALL nDGsweep(A1dx,nex,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u1dx,lagrangeDeriv,time,dt,transient,&
-                              dozshulimit,dofctlimit,nZSnodes,quadZSWeights,lagValsZS)
-                ! Update solution
-                A(1:nex,whichEl,:,whichLvl) = A1dx(1:nex,:)
-            ENDDO !i
+            CALL nDGsweep(A1dx,nex,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u1dx,lagrangeDeriv,time,dt,transient,&
+                          dozshulimit,dofctlimit,nZSnodes,quadZSWeights,lagValsZS)
+            ! Update solution
+            A(:,whichLvl,1:nex,whichEl) = A1dx(1:nex,:)
+          ENDDO !i
 
-            totalLvls = nex*(nOrder+1)
-            DO i=0,totalLvls-1
-                whichEl = i/(nOrder+1) + 1
-                whichLvl = MOD(i,nOrder+1)
-                A1dy(1:ney,:) = A(whichEl,1:ney,whichLvl,:)
-                v1dy(1:ney,:) = v0(whichEl,1:ney,whichLvl,:)
+          totalLvls = nex*(nOrder+1)
+          DO i=0,totalLvls-1
+            whichEl = i/(nOrder+1) + 1
+            whichLvl = MOD(i,nOrder+1)
+            A1dy(1:ney,:) = A(whichLvl,:,whichEl,1:ney)
+            v1dy(1:ney,:) = v0(whichLvl,:,whichEl,1:ney)
 
-                CALL nDGsweep(A1dy,ney,dyel,nOrder,nQuadNodes,gllNodes,gllWeights,v1dy,lagrangeDeriv,time,dt,transient,&
-                              dozshulimit,dofctlimit,nZSnodes,quadZSWeights,lagValsZS)
-                ! Update solution
-                A(whichEl,1:ney,whichLvl,:) = A1dy(1:ney,:)
-            ENDDO !i
-
+            CALL nDGsweep(A1dy,ney,dyel,nOrder,nQuadNodes,gllNodes,gllWeights,v1dy,lagrangeDeriv,time,dt,transient,&
+                          dozshulimit,dofctlimit,nZSnodes,quadZSWeights,lagValsZS)
+            ! Update solution
+            A(whichLvl,:,whichEl,1:ney) = A1dy(1:ney,:)
+          ENDDO !i
         ELSE
-            ! ===================================
-            ! Perform sweeps in y-direction first
-            ! ===================================
-            totalLvls = nex*(nOrder+1)
-            DO i=0,totalLvls-1
-                whichEl = i/(nOrder+1) + 1
-                whichLvl = MOD(i,nOrder+1)
-                A1dy(1:ney,:) = A(whichEl,1:ney,whichLvl,:)
-                v1dy(1:ney,:) = v0(whichEl,1:ney,whichLvl,:)
+          ! ===================================
+          ! Perform sweeps in y-direction first
+          ! ===================================
+          totalLvls = nex*(nOrder+1)
+          DO i=0,totalLvls-1
+            whichEl = i/(nOrder+1) + 1
+            whichLvl = MOD(i,nOrder+1)
+            A1dy(1:ney,:) = A(whichLvl,:,whichEl,1:ney)
+            v1dy(1:ney,:) = v0(whichLvl,:,whichEl,1:ney)
 
-                CALL nDGsweep(A1dy,ney,dyel,nOrder,nQuadNodes,gllNodes,gllWeights,v1dy,lagrangeDeriv,time,dt,transient,&
-                              dozshulimit,dofctlimit,nZSnodes,quadZSWeights,lagValsZS)
-                ! Update solution
-                A(whichEl,1:ney,whichLvl,:) = A1dy(1:ney,:)
-            ENDDO !i
+            CALL nDGsweep(A1dy,ney,dyel,nOrder,nQuadNodes,gllNodes,gllWeights,v1dy,lagrangeDeriv,time,dt,transient,&
+                          dozshulimit,dofctlimit,nZSnodes,quadZSWeights,lagValsZS)
+            ! Update solution
+            A(whichLvl,:,whichEl,1:ney) = A1dy(1:ney,:)
+          ENDDO !i
 
-            totalLvls = ney*(nOrder+1)
-            DO i=0,totalLvls-1
-                whichEl = i/(nOrder+1) + 1
-                whichLvl = MOD(i,nOrder+1)
-                A1dx(1:nex,:) = A(1:nex,whichEl,:,whichLvl)
-                u1dx(1:nex,:) = u0(1:nex,whichEl,:,whichLvl)
+          totalLvls = ney*(nOrder+1)
+          DO i=0,totalLvls-1
+            whichEl = i/(nOrder+1) + 1
+            whichLvl = MOD(i,nOrder+1)
+            A1dx(1:nex,:) = A(1:nex,whichEl,:,whichLvl)
+            u1dx(1:nex,:) = u0(1:nex,whichEl,:,whichLvl)
 
-                CALL nDGsweep(A1dx,nex,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u1dx,lagrangeDeriv,time,dt,transient,&
-                              dozshulimit,dofctlimit,nZSnodes,quadZSWeights,lagValsZS)
-                ! Update solution
-                A(1:nex,whichEl,:,whichLvl) = A1dx(1:nex,:)
-            ENDDO !i
+            CALL nDGsweep(A1dx,nex,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u1dx,lagrangeDeriv,time,dt,transient,&
+                          dozshulimit,dofctlimit,nZSnodes,quadZSWeights,lagValsZS)
+            ! Update solution
+            A(1:nex,whichEl,:,whichLvl) = A1dx(1:nex,:)
+          ENDDO !i
         ENDIF !oddstep
     END SUBROUTINE strangSplitUpdate
 
@@ -675,13 +673,13 @@ CONTAINS
         REAL(KIND=8), DIMENSION(0:nQuadNodes) :: gllNodes,gllWeights
         REAL(KIND=8), DIMENSION(1:2), INTENT(IN) :: xEdge,yEdge
         !Outputs
-        REAL(KIND=8), DIMENSION(1:nex,1:ney,0:norder,0:norder), INTENT(OUT) :: A,u0,v0
+        REAL(KIND=8), DIMENSION(0:norder,0:norder,1:nex,1:ney), INTENT(OUT) :: A,u0,v0
         CHARACTER(LEN=*), INTENT(OUT) :: cdf_out
         REAL(KIND=8), INTENT(OUT) :: tfinal
         !Local Variables
-        REAL(KIND=8), DIMENSION(1:nex,0:norder), INTENT(OUT) :: xQuad
-        REAL(KIND=8), DIMENSION(1:ney,0:norder), INTENT(OUT) :: yQuad
-        REAL(KIND=8), DIMENSION(1:nex,1:ney,0:norder,0:norder,0:1) :: psiu,psiv
+        REAL(KIND=8), DIMENSION(0:norder,1:nex), INTENT(OUT) :: xQuad
+        REAL(KIND=8), DIMENSION(0:norder,1:ney), INTENT(OUT) :: yQuad
+        REAL(KIND=8), DIMENSION(0:norder,0:norder,0:1,1:nex,1:ney) :: psiu,psiv
         REAL(KIND=8), DIMENSION(0:norder,0:norder) :: r
         REAL(KIND=8), DIMENSION(1:2) :: domainCenter
         REAL(KIND=8) :: PI,dxmin,dymin,dxel,dyel,xWidth,yWidth,xc,yc,spd
@@ -705,176 +703,174 @@ CONTAINS
 
         ! Quadrature locations, mapped to physical domain
         DO i=1,nex
-            xQuad(i,:) = x_elcent(i) + (dxel/2d0)*gllNodes(:)
+          xQuad(:,i) = x_elcent(i) + (dxel/2d0)*gllNodes(:)
         ENDDO!i
         DO j=1,ney
-            yQuad(j,:) = y_elcent(j) + (dyel/2d0)*gllNodes(:)
+          yQuad(:,j) = y_elcent(j) + (dyel/2d0)*gllNodes(:)
         ENDDO!j
 
         ! Fill streamfunction array
         SELECT CASE(ntest)
         CASE(1,8:10) ! uniform velocity u = v = 1
-                DO i=1,nex
-                    DO j=1,ney
-                        DO k=0,norder
-                        psiu(i,j,k,:,1) = (yQuad(j,:) + dymin/2d0) - xQuad(i,k)
-                        psiu(i,j,k,:,0) = (yQuad(j,:) - dymin/2d0) - xQuad(i,k)
+          DO j=1,ney
+            DO i=1,nex
+              DO k=0,norder
+                psiu(k,:,1,i,j) = (yQuad(:,j) + dymin/2d0) - xQuad(k,i)
+                psiu(k,:,0,i,j) = (yQuad(:,j) - dymin/2d0) - xQuad(k,i)
 
-                        psiv(i,j,k,:,1) = yQuad(j,:) - (xQuad(i,k) + dxmin/2d0)
-                        psiv(i,j,k,:,0) = yQuad(j,:) - (xQuad(i,k) - dxmin/2d0)
-                        ENDDO !k
-                    ENDDO !j
-                ENDDO !i
-            CASE(2:4,11) ! Solid body rotation
-                ! pi*( (x-0.5)**2 + (y-0.5)**2 )
-                DO i=1,nex
-                    DO j=1,ney
-                        DO k=0,norder
+                psiv(k,:,1,i,j) = yQuad(:,j) - (xQuad(k,i) + dxmin/2d0)
+                psiv(k,:,0,i,j) = yQuad(:,j) - (xQuad(k,i) - dxmin/2d0)
+              ENDDO !k
+            ENDDO !j
+          ENDDO !i
+        CASE(2:4,11) ! Solid body rotation
+          ! pi*( (x-0.5)**2 + (y-0.5)**2 )
+          DO j=1,ney
+            DO i=1,nex
+              DO k=0,norder
+             psiu(k,:,1,i,j) = spd*0.5D0*( (xQuad(k,i)-domainCenter(1))**2 + (yQuad(:,j) + dymin/2d0 -domainCenter(2))**2 )
+             psiu(k,:,0,i,j) = spd*0.5D0*( (xQuad(k,i)-domainCenter(1))**2 + (yQuad(:,j) - dymin/2d0 -domainCenter(2))**2 )
 
-                     psiu(i,j,k,:,1) = spd*0.5D0*( (xQuad(i,k)-domainCenter(1))**2 + (yQuad(j,:) + dymin/2d0 -domainCenter(2))**2 )
-                     psiu(i,j,k,:,0) = spd*0.5D0*( (xQuad(i,k)-domainCenter(1))**2 + (yQuad(j,:) - dymin/2d0 -domainCenter(2))**2 )
-
-                     psiv(i,j,k,:,1) = spd*0.5D0*( (xQuad(i,k) + dxmin/2d0-domainCenter(1))**2 + (yQuad(j,:) -domainCenter(2))**2 )
-                     psiv(i,j,k,:,0) = spd*0.5D0*( (xQuad(i,k) - dymin/2d0-domainCenter(1))**2 + (yQuad(j,:) -domainCenter(2))**2 )
-
-                        ENDDO !k
-                    ENDDO !j
-                ENDDO !i
-            CASE(5:7,100) ! Leveque deformation flow
+             psiv(k,:,1,i,j) = spd*0.5D0*( (xQuad(k,i) + dxmin/2d0-domainCenter(1))**2 + (yQuad(:,j) -domainCenter(2))**2 )
+             psiv(k,:,0,i,j) = spd*0.5D0*( (xQuad(k,i) - dymin/2d0-domainCenter(1))**2 + (yQuad(:,j) -domainCenter(2))**2 )
+              ENDDO !k
+            ENDDO !i
+          ENDDO !j
+        CASE(5:7,100) ! Leveque deformation flow
 				!(1/pi)*sin(pi*x(i))**2 * sin(pi*y(j))**2
-                DO i=1,nex
-                    DO j=1,ney
-                        DO k=0,norder
-                        psiu(i,j,k,:,1) = (1D0/PI)*(DSIN(PI*xQuad(i,k))**2 * DSIN(PI*(yQuad(j,:)+dymin/2d0))**2)
-                        psiu(i,j,k,:,0) = (1D0/PI)*(DSIN(PI*xQuad(i,k))**2 * DSIN(PI*(yQuad(j,:)-dymin/2d0))**2)
+          DO j=1,ney
+            DO i=1,nex
+              DO k=0,norder
+              psiu(k,:,1,i,j) = (1D0/PI)*(DSIN(PI*xQuad(k,i))**2 * DSIN(PI*(yQuad(:,j)+dymin/2d0))**2)
+              psiu(k,:,0,i,j) = (1D0/PI)*(DSIN(PI*xQuad(k,i))**2 * DSIN(PI*(yQuad(:,j)-dymin/2d0))**2)
 
-                        psiv(i,j,k,:,1) = (1D0/PI)*(DSIN(PI*(xQuad(i,k)+dxmin/2d0))**2 * DSIN(PI*yQuad(j,:))**2)
-                        psiv(i,j,k,:,0) = (1D0/PI)*(DSIN(PI*(xQuad(i,k)-dxmin/2d0))**2 * DSIN(PI*yQuad(j,:))**2)
-                        ENDDO !k
-                    ENDDO !j
-                ENDDO !i
+              psiv(k,:,1,i,j) = (1D0/PI)*(DSIN(PI*(xQuad(k,i)+dxmin/2d0))**2 * DSIN(PI*yQuad(:,j))**2)
+              psiv(k,:,0,i,j) = (1D0/PI)*(DSIN(PI*(xQuad(k,i)-dxmin/2d0))**2 * DSIN(PI*yQuad(:,j))**2)
+              ENDDO !k
+            ENDDO !i
+          ENDDO !j
         END SELECT !ntest
 
-		! Compute velocity from stream functions
-        DO i=1,nex
-            DO j=1,ney
-                u0(i,j,:,:) = (psiu(i,j,:,:,1)-psiu(i,j,:,:,0) )/dymin
-                v0(i,j,:,:) = -(psiv(i,j,:,:,1)-psiv(i,j,:,:,0) )/dxmin
-            ENDDO !j
+        ! Compute velocity from stream functions
+        DO j=1,ney
+          DO i=1,nex
+            u0(:,:,i,j) = (psiu(:,:,1,i,j)-psiu(:,:,0,i,j) )/dymin
+            v0(:,:,i,j) = -(psiv(:,:,1,i,j)-psiv(:,:,0,i,j) )/dxmin
+          ENDDO !j
         ENDDO !i
 
         ! Initialize coefficent array
         SELECT CASE(ntest)
         CASE(1) ! uniform advection of a sine wave
-                cdf_out = 'dg2d_sine_adv.nc'
-                tfinal = 10D0
-                DO i=1,nex
-                    DO j=1,ney
-                        DO k=0,norder
-!                            A(i,j,k,:) = DSIN(2D0*PI*xQuad(i,k))*DSIN(2D0*PI*yQuad(j,:))
-                            A(i,j,k,:) = 1D0+DSIN(2D0*PI*xQuad(i,k))*DSIN(2D0*PI*yQuad(j,:))
-                        ENDDO !k
-                    ENDDO!j
-                ENDDO!i
+          cdf_out = 'dg2d_sine_adv.nc'
+          tfinal = 10D0
+          DO j=1,ney
+            DO i=1,nex
+              DO k=0,norder
+! A(i,j,k,:) = DSIN(2D0*PI*xQuad(i,k))*DSIN(2D0*PI*yQuad(j,:))
+                A(k,:,i,j) = 1D0+DSIN(2D0*PI*xQuad(k,i))*DSIN(2D0*PI*yQuad(:,j))
+              ENDDO !k
+            ENDDO!i
+          ENDDO!j
 
-            CASE(2) ! solid body rotation of a cylinder
-                cdf_out = 'dg2d_rot_cylinder.nc'
-!                tfinal = 2D0*PI
-                tfinal = 1D0
-                A = 0D0
-                DO i=1,nex
-                    DO j=1,ney
-                        DO k=0,norder
-                            r(k,:) = SQRT((xQuad(i,k)-0.3d0)**2 + (yQuad(j,:)-0.3d0)**2)
-                        ENDDO !k
-                        WHERE(r .lt. 0.125D0)
-                            A(i,j,:,:) = 1D0
-                        END WHERE
-                    ENDDO!j
-                ENDDO!i
+          CASE(2) ! solid body rotation of a cylinder
+            cdf_out = 'dg2d_rot_cylinder.nc'
+!tfinal = 2D0*PI
+            tfinal = 1D0
+            A = 0D0
+            DO j=1,ney
+              DO i=1,nex
+                DO k=0,norder
+                  r(k,:) = SQRT((xQuad(i,k)-0.3d0)**2 + (yQuad(:,j)-0.3d0)**2)
+                ENDDO !k
+                WHERE(r .lt. 0.125D0)
+                  A(:,:,i,j) = 1D0
+                END WHERE
+              ENDDO!i
+            ENDDO!j
 
             CASE(3,10:11) ! solid body rotation of a cylinder (comparison to frank's code)
-                cdf_out = 'dg2d_rot_cylinder_modified.nc'
-                tfinal = 1D0
-                A = 0D0
-                xc = xEdge(1)+xWidth/4D0
-                yc = yEdge(1)+yWidth/2D0
+              cdf_out = 'dg2d_rot_cylinder_modified.nc'
+              tfinal = 1D0
+              A = 0D0
+              xc = xEdge(1)+xWidth/4D0
+              yc = yEdge(1)+yWidth/2D0
 
+              DO j=1,ney
                 DO i=1,nex
-                    DO j=1,ney
-                        DO k=0,norder
-                            r(k,:) = SQRT((xQuad(i,k)-xc)**2 + (yQuad(j,:)-yc)**2)
-                        ENDDO !k
-                        WHERE(r .lt. 0.25D0)
-                            A(i,j,:,:) = 1D0
-                        END WHERE
-                    ENDDO!j
+                  DO k=0,norder
+                    r(k,:) = SQRT((xQuad(k,i)-xc)**2 + (yQuad(j,:)-yc)**2)
+                  ENDDO !k
+                  WHERE(r .lt. 0.25D0)
+                    A(:,:,i,j) = 1D0
+                  END WHERE
                 ENDDO!i
+              ENDDO!j
 
             CASE(5,9) ! standard cosbell deformation
-				cdf_out = 'dg2d_def_cosbell.nc'
-				tfinal = 10D0
-                A = 0D0
+      				cdf_out = 'dg2d_def_cosbell.nc'
+      				tfinal = 10D0
+              A = 0D0
+              DO j=1,ney
                 DO i=1,nex
-                    DO j=1,ney
-                        DO k=0,norder ! Fill distance array for (i,j) element
-                            r(k,:) = 4D0*SQRT( (xQuad(i,k)-0.25D0)**2 + (yQuad(j,:)-0.25D0)**2 )
-                        ENDDO !k
-                        WHERE(r .lt. 1D0)
+                  DO k=0,norder ! Fill distance array for (i,j) element
+                    r(k,:) = 4D0*SQRT( (xQuad(k,i)-0.25D0)**2 + (yQuad(:,j)-0.25D0)**2 )
+                  ENDDO !k
+                  WHERE(r .lt. 1D0)
 !                            A(i,j,:,:) = (0.5d0*(1.d0 + DCOS(PI*r(:,:))))
-                            A(i,j,:,:) = (0.25d0*(1.d0 + DCOS(PI*r(:,:)))**2)
-                        END WHERE
-                    ENDDO !j
+                    A(:,:,i,j) = (0.25d0*(1.d0 + DCOS(PI*r(:,:)))**2)
+                  END WHERE
                 ENDDO !i
+              ENDDO !j
 
             CASE(6) ! smoother cosbell deformation
-				cdf_out = 'dg2d_smth_cosbell.nc'
-				tfinal = 5D0
-                A = 0D0
+              cdf_out = 'dg2d_smth_cosbell.nc'
+              tfinal = 5D0
+              A = 0D0
+              DO j=1,ney
                 DO i=1,nex
-                    DO j=1,ney
-                        DO k=0,norder ! Fill distance array for (i,j) element
-                            r(k,:) = 3D0*SQRT( (xQuad(i,k)-0.4D0)**2 + (yQuad(j,:)-0.4D0)**2 )
-                        ENDDO !k
-                        WHERE(r .lt. 1D0)
-                            A(i,j,:,:) = (0.5d0*(1.d0 + DCOS(PI*r(:,:))))**3
-                        END WHERE
-                    ENDDO !j
+                  DO k=0,norder ! Fill distance array for (i,j) element
+                    r(k,:) = 3D0*SQRT( (xQuad(k,i)-0.4D0)**2 + (yQuad(:,j)-0.4D0)**2 )
+                  ENDDO !k
+                  WHERE(r .lt. 1D0)
+                    A(:,:,i,j) = (0.5d0*(1.d0 + DCOS(PI*r(:,:))))**3
+                  END WHERE
                 ENDDO !i
+              ENDDO !j
             CASE(7) ! slotted cylinder ICs
-                cdf_out = 'dg2d_def_cyl.nc'
-                tfinal = 5D0
-                A = 0D0
-                xc = 0.25D0
-                yc = 0.5D0
+              cdf_out = 'dg2d_def_cyl.nc'
+              tfinal = 5D0
+              A = 0D0
+              xc = 0.25D0
+              yc = 0.5D0
+              DO j=1,ney
                 DO i=1,nex
-                    DO j=1,ney
-                        DO k=0,nOrder
-                            r(k,:) = SQRT((xQuad(i,k)-xc)**2 + (yQuad(j,:)-yc)**2)
-                        ENDDO !k
-                        WHERE(r .lt. 0.15D0)
-                            A(i,j,:,:) = 1D0
-                        END WHERE
+                  DO k=0,nOrder
+                    r(k,:) = SQRT((xQuad(k,i)-xc)**2 + (yQuad(j,:)-yc)**2)
+                  ENDDO !k
+                  WHERE(r .lt. 0.15D0)
+                    A(:,:,i,j) = 1D0
+                  END WHERE
 
-                        DO k=0,nOrder
-                            DO l=0,nOrder
-                                IF(ABS(xQuad(i,k)-xc) .lt. 0.025D0 .AND. yQuad(j,l) .gt.(yc-0.0625D0)) THEN
-                                    A(i,j,k,l) = 0D0
-                                ENDIF
-                            ENDDO !l
-                        ENDDO !k
-                    ENDDO !j
+                  DO k=0,nOrder
+                    DO l=0,nOrder
+                      IF(ABS(xQuad(k,i)-xc) .lt. 0.025D0 .AND. yQuad(l,j) .gt.(yc-0.0625D0)) THEN
+                        A(k,l,i,j) = 0D0
+                      ENDIF
+                    ENDDO !l
+                  ENDDO !k
                 ENDDO !i
+              ENDDO !j
             CASE(8) ! gaussian bump
-                cdf_out = 'dg2d_gauss_bump.nc'
-                tfinal = 1D0
+              cdf_out = 'dg2d_gauss_bump.nc'
+              tfinal = 1D0
+              DO j=1,ney
                 DO i=1,nex
-                    DO j=1,ney
-                        DO k=0,norder
-                            A(i,j,k,:) = EXP(- 2*(xQuad(i,k)**2 + yQuad(j,:)**2 )/(8D0**2) )
-                        ENDDO !k
-                    ENDDO !j
-                ENDDO !i
+                  DO k=0,norder
+                    A(k,:,i,j) = EXP(- 2*(xQuad(k,i)**2 + yQuad(:,j)**2 )/(8D0**2) )
+                  ENDDO !k
+                ENDDO !j
+              ENDDO !i
         END SELECT !ntest
 
         if(ntest .eq. 10) then
@@ -896,8 +892,8 @@ CONTAINS
 		REAL(KIND=8), INTENT(IN) :: tval_in,mu
 		REAL(KIND=8), DIMENSION(1:nex*nxiplot), INTENT(IN) :: x
 		REAL(KIND=8), DIMENSION(1:ney*netaplot), INTENT(IN) :: y
-		REAL(KIND=8), DIMENSION(1:nex,1:ney,0:norder,0:norder), INTENT(IN) :: A
-        REAL(KIND=8), DIMENSION(0:nQuadNodes), INTENT(IN) :: gllWeights,gllNodes
+		REAL(KIND=8), DIMENSION(0:norder,0:norder,1:nex,1:ney), INTENT(IN) :: A
+    REAL(KIND=8), DIMENSION(0:nQuadNodes), INTENT(IN) :: gllWeights,gllNodes
 
 		! Outputs
 
@@ -905,8 +901,8 @@ CONTAINS
 		INTEGER :: cdfid ! ID for netCDF file
 		INTEGER, PARAMETER :: NDIMS = 3
 		INTEGER :: ierr
-	    INTEGER :: idq,idt,idx,idy,dimids(NDIMS),idweight,idnode,idmu
-	    INTEGER :: x_dimid, y_dimid, t_dimid,node_dimid
+    INTEGER :: idq,idt,idx,idy,dimids(NDIMS),idweight,idnode,idmu
+    INTEGER :: x_dimid, y_dimid, t_dimid,node_dimid
 		INTEGER, DIMENSION(1:NDIMS) :: start, count
 		CHARACTER(len=8) :: nxname,xname,nyname,yname,qname,muname
 
@@ -914,10 +910,10 @@ CONTAINS
 		REAL(KIND=8), DIMENSION(1:nex*nxiplot) :: temp
 		INTEGER :: i,j,l,m,nxout,nyout,ylvl,internalLvl
 
-	    SAVE cdfid, idq, t_dimid, start, count
+    SAVE cdfid, idq, t_dimid, start, count
 
-        nxout = nex*nxiplot
-        nyout = ney*netaplot
+    nxout = nex*nxiplot
+    nyout = ney*netaplot
 
 		IF(stat .eq. -1) THEN
 			! Create netCDF file and time variables
@@ -925,7 +921,7 @@ CONTAINS
 
 			ierr = NF90_REDEF(cdfid)
 			ierr = NF90_DEF_DIM(cdfid, "nt", ilvl+1, t_dimid)
-            ierr = NF90_DEF_DIM(cdfid, "nnodes", nQuadNodes+1, node_dimid)
+      ierr = NF90_DEF_DIM(cdfid, "nnodes", nQuadNodes+1, node_dimid)
 
 			ierr = NF90_DEF_VAR(cdfid, "qweights",NF90_FLOAT, node_dimid, idweight)
 			ierr = NF90_DEF_VAR(cdfid, "qnodes",NF90_FLOAT, node_dimid, idnode)
@@ -942,7 +938,7 @@ CONTAINS
 			! Write t values
 			ierr = NF90_PUT_VAR(cdfid,idt,tmp)
 			ierr = NF90_PUT_VAR(cdfid,idweight,gllWeights)
-            ierr = NF90_PUT_VAR(cdfid,idnode,gllNodes)
+      ierr = NF90_PUT_VAR(cdfid,idnode,gllNodes)
 
 			DEALLOCATE(tmp, STAT=ierr)
 
@@ -959,7 +955,7 @@ CONTAINS
 			WRITE(xname, '(a1,i1)') 'x',ilvl
 			WRITE(yname, '(a1,i1)') 'y',ilvl
 			WRITE(qname, '(a1,i1)') 'Q',ilvl
-            WRITE(muname, '(a2,i1)') 'mu',ilvl
+      WRITE(muname, '(a2,i1)') 'mu',ilvl
 
 			ierr = NF90_REDEF(cdfid)
 
@@ -973,14 +969,14 @@ CONTAINS
 			ierr = NF90_DEF_VAR(cdfid, TRIM(qname),NF90_FLOAT,dimids,idq)
 			ierr = NF90_DEF_VAR(cdfid, TRIM(xname),NF90_FLOAT,x_dimid,idx)
 			ierr = NF90_DEF_VAR(cdfid, TRIM(yname),NF90_FLOAT,y_dimid,idy)
-            ierr = NF90_DEF_VAR(cdfid, TRIM(muname),NF90_FLOAT,idmu)
+      ierr = NF90_DEF_VAR(cdfid, TRIM(muname),NF90_FLOAT,idmu)
 
 			ierr = NF90_enddef(cdfid)
 
 			! Write x and y values
 			ierr = NF90_PUT_VAR(cdfid, idx, x)
 			ierr = NF90_PUT_VAR(cdfid, idy, y)
-            ierr = NF90_PUT_VAR(cdfid,idmu,mu)
+      ierr = NF90_PUT_VAR(cdfid,idmu,mu)
 
 			start(3) = 1
 
@@ -991,15 +987,15 @@ CONTAINS
 
 		! Write out concentration field
 		count(1) = nxout
-        DO ylvl=1,nyout
-            start(2) = ylvl
-            j = 1 + (ylvl-1)/netaplot
-            internalLvl = mod(ylvl-1,netaplot)
-            DO i=1,nex
-                temp(1+(i-1)*nxiplot:i*nxiplot) = A(i,j,:,internalLvl)
-            ENDDO!i
-            ierr = NF90_PUT_VAR(cdfid,idq,temp,start,count)
-        ENDDO!j
+    DO ylvl=1,nyout
+      start(2) = ylvl
+      j = 1 + (ylvl-1)/netaplot
+      internalLvl = mod(ylvl-1,netaplot)
+      DO i=1,nex
+        temp(1+(i-1)*nxiplot:i*nxiplot) = A(:,internalLvl,i,j)
+      ENDDO!i
+      ierr = NF90_PUT_VAR(cdfid,idq,temp,start,count)
+    ENDDO!j
 
 		! Increment t level
 		start(3) = start(3) + 1
