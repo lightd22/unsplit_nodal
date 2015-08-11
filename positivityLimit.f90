@@ -11,7 +11,8 @@ SUBROUTINE limitMeanPositivity(coeffs,elemAvgs,lagGaussVal,gqWeights,gllWeights,
     DOUBLE PRECISION, DIMENSION(0:norder,0:gqOrder), INTENT(IN) :: lagGaussVal
     DOUBLE PRECISION, DIMENSION(1:nex,1:ney), INTENT(IN) :: elemAvgs
     ! Outputs
-    DOUBLE PRECISION, DIMENSION(1:nex,1:ney,0:nOrder,0:nOrder), INTENT(INOUT) :: coeffs
+    DOUBLE PRECISION, DIMENSION(0:nOrder,0:nOrder,1:nex,1:ney), INTENT(INOUT) :: coeffs
+
     ! Local variables
     INTEGER :: i,j,l,beta,index
     DOUBLE PRECISION :: avg,valMin,leftTrace,rightTrace,topTrace,botTrace,magicPt
@@ -32,8 +33,8 @@ SUBROUTINE limitMeanPositivity(coeffs,elemAvgs,lagGaussVal,gqWeights,gllWeights,
     eps = epsilon(1D0)
     SELECT CASE(limitingMeth)
     CASE(1,3)
-        DO i=1,nex
-          DO j=1,ney
+        DO j=1,ney
+          DO i=1,nex
             ! Step 1: Initialize mean and minimum value
             avg = elemAvgs(i,j)
             valMin = HUGE(1D0)
@@ -42,10 +43,10 @@ SUBROUTINE limitMeanPositivity(coeffs,elemAvgs,lagGaussVal,gqWeights,gllWeights,
             DO beta=0,gqOrder
               ! Look at left, right, top, and bottom trace values for this
               ! Gauss quadrature point (indexed by beta)
-              leftTrace = SUM(coeffs(i,j,0,:)*lagGaussVal(:,beta))
-              rightTrace = SUM(coeffs(i,j,nOrder,:)*lagGaussVal(:,beta))
-              botTrace = SUM(coeffs(i,j,:,0)*lagGaussVal(:,beta))
-              topTrace = SUM(coeffs(i,j,:,nOrder)*lagGaussVal(:,beta))
+              leftTrace = SUM(coeffs(0,:,i,j)*lagGaussVal(:,beta))
+              rightTrace = SUM(coeffs(nOrder,:,i,j)*lagGaussVal(:,beta))
+              botTrace = SUM(coeffs(:,0,i,j)*lagGaussVal(:,beta))
+              topTrace = SUM(coeffs(:,nOrder,i,j)*lagGaussVal(:,beta))
 
               ! Update minimum
               valMin = MIN(valMin,leftTrace,rightTrace,botTrace,topTrace)
@@ -59,10 +60,10 @@ SUBROUTINE limitMeanPositivity(coeffs,elemAvgs,lagGaussVal,gqWeights,gllWeights,
             magicPt = magicPt/(1D0-zsMinWeight)
 
             ! Update minimum
-            !valMin = MIN(valMin,magicPt,MINVAL(coeffs(i,j,:,:)))
+            !valMin = MIN(valMin,magicPt,MINVAL(coeffs(:,:,i,j)))
             valMin = MIN(valMin,magicPt)
 
-            !valMin = MINVAL(coeffs(i,j,:,:))
+            !valMin = MINVAL(coeffs(:,:,i,j))
             valMin = valMin - eps
 
             ! Step 3: Compute theta and rescale polynomial
@@ -73,14 +74,14 @@ SUBROUTINE limitMeanPositivity(coeffs,elemAvgs,lagGaussVal,gqWeights,gllWeights,
             ENDIF
 
             ! Rescale reconstructing polynomial for (i,j)th element
-            coeffs(i,j,:,:) = theta*(coeffs(i,j,:,:) - avg) + avg
+            coeffs(:,:,i,j) = theta*(coeffs(:,:,i,j) - avg) + avg
+          ENDDO !i
+        ENDDO !j
 
-          ENDDO !j
-        ENDDO !i
       CASE(2)
         ! -- TODO (Devin): Make this more efficient / readable
-        DO i = 1,nex
-          DO j = 1,ney
+        DO j = 1,ney
+          DO i = 1,nex
             ! Step 1: Pull element average
             avg = elemAvgs(i,j)
 
@@ -90,28 +91,28 @@ SUBROUTINE limitMeanPositivity(coeffs,elemAvgs,lagGaussVal,gqWeights,gllWeights,
             DO beta = 0,nOrder-1
 
               index = nOrder-beta
-              leftTrace = coeffs(i,j,0,beta)
-              rightTrace = coeffs(i,j,nOrder,index)
-              topTrace = coeffs(i,j,beta,nOrder)
-              botTrace = coeffs(i,j,index,0)
+              leftTrace = coeffs(0,beta,i,j)
+              rightTrace = coeffs(nOrder,index,i,j)
+              topTrace = coeffs(beta,nOrder,i,j)
+              botTrace = coeffs(index,0,i,j)
 
               weight = gllWeights(0)*gllWeights(beta)
 
               ! Truncate along left edge
               massChg = massChg + massDiff(leftTrace,weight)
-              coeffs(i,j,0,beta) = MAX(leftTrace,0D0)
+              coeffs(0,beta,i,j) = MAX(leftTrace,0D0)
 
               ! Truncate along right edge
               massChg = massChg + massDiff(rightTrace,weight)
-              coeffs(i,j,nOrder,index) = MAX(rightTrace,0D0)
+              coeffs(nOrder,index,i,j) = MAX(rightTrace,0D0)
 
               ! Truncate along top edge
               massChg = massChg + massDiff(topTrace,weight)
-              coeffs(i,j,beta,nOrder) = MAX(topTrace,0D0)
+              coeffs(beta,nOrder,i,j) = MAX(topTrace,0D0)
 
               ! Truncate along bottom edge
               massChg = massChg + massDiff(botTrace,weight)
-              coeffs(i,j,index,0) = MAX(botTrace,0D0)
+              coeffs(index,0,i,j) = MAX(botTrace,0D0)
 
               ! Track modification to magic point
 !              magicPt = magicPt + gllWeights(beta)*(mu1*(rightTrace+leftTrace)+mu2*(topTrace+botTrace))
@@ -124,12 +125,12 @@ SUBROUTINE limitMeanPositivity(coeffs,elemAvgs,lagGaussVal,gqWeights,gllWeights,
 !              massChg = massChg - magicPt
 
               ! Truncate internal nodes to zero
-!              coeffs(i,j,1:nOrder-1,1:nOrder-1) = 0D0
+!              coeffs(1:nOrder-1,1:nOrder-1,i,j) = 0D0
 !            ENDIF
 
             ! Rescale remaining coefficents to maintain conservation
             theta = avg/MAX(avg+massChg,TINY(1D0))
-            coeffs(i,j,:,:) = theta*coeffs(i,j,:,:)
+            coeffs(:,:,i,j) = theta*coeffs(:,:,i,j)
 
           ENDDO !j
         ENDDO !i
@@ -146,7 +147,7 @@ SUBROUTINE limitNodePositivity(coeffs,elemAvgs,gllWeights,nex,ney,nOrder)
   DOUBLE PRECISION, DIMENSION(1:nex,1:ney), INTENT(IN) :: elemAvgs
   DOUBLE PRECISION, DIMENSION(0:nOrder), INTENT(IN) :: gllWeights
   ! Outputs
-  DOUBLE PRECISION, DIMENSION(1:nex,1:ney,0:nOrder,0:nOrder), INTENT(INOUT) :: coeffs
+  DOUBLE PRECISION, DIMENSION(0:nOrder,0:nOrder,1:nex,1:ney), INTENT(INOUT) :: coeffs
   ! Local variables
   INTEGER :: i,j,p,q
   DOUBLE PRECISION :: valMin,eps,theta,avg
@@ -160,41 +161,41 @@ SUBROUTINE limitNodePositivity(coeffs,elemAvgs,gllWeights,nex,ney,nOrder)
       ! ================================================================================
       ! Use ZS (2010)-style linear rescaling
       ! ================================================================================
-      DO i=1,nex
-        DO j=1,ney
+      DO j=1,ney
+        DO i=1,nex
           ! Compute minimum value amongst nodal values (read from coefficients)
-          valMin = MINVAL(coeffs(i,j,:,:))
+          valMin = MINVAL(coeffs(:,:,i,j))
           valMin = valMin - eps
           avg = elemAvgs(i,j)
 
           ! Compute rescaling factor
           theta = MIN(abs(avg)/(abs(valMin-avg)),1D0)
           ! Rescale approximating polynomial
-          coeffs(i,j,:,:) = theta*(coeffs(i,j,:,:) - avg) + avg
-        ENDDO !j
-      ENDDO !i
+          coeffs(:,:,i,j) = theta*(coeffs(:,:,i,j) - avg) + avg
+        ENDDO !i
+      ENDDO !j
     CASE(2,3)
       ! ================================================================================
       ! Use TMAR limiting at GLL nodes
       ! ================================================================================
-      DO i=1,nex
-        DO j=1,ney
+      DO j=1,ney
+        DO i=1,nex
           Mt = 0D0
           Mp = 0D0
           DO p=0,nOrder
             DO q=0,nOrder
-              Mt = Mt+gllWeights(p)*gllWeights(q)*coeffs(i,j,p,q)
+              Mt = Mt+gllWeights(p)*gllWeights(q)*coeffs(p,q,i,j)
               coeffs(i,j,p,q) = MAX(coeffs(i,j,p,q),0D0) ! Truncate negative nodes
-              Mp = Mp+gllWeights(p)*gllWeights(q)*coeffs(i,j,p,q)
+              Mp = Mp+gllWeights(p)*gllWeights(q)*coeffs(p,q,i,j)
             ENDDO !q
           ENDDO !p
           theta = MAX(Mt,0D0)/MAX(Mp,TINY(1D0)) ! Linear reduction factor
-          coeffs(i,j,:,:) = theta*coeffs(i,j,:,:) ! Reduce remaining (positive) nodes by reduction factor
-        ENDDO!j
-      ENDDO !i
+          coeffs(:,:,i,j) = theta*coeffs(:,:,i,j) ! Reduce remaining (positive) nodes by reduction factor
+        ENDDO!i
+      ENDDO !j
     CASE DEFAULT
       write(*,*) '***** ERROR *****'
-      write(*,*) 'IN limitNodePositivity()... NO SUCH LIMITING METHOD'
+      write(*,*) 'IN limitNodePositivity()... LIMITING METHOD INVALID'
       write(*,*) 'Stopping...'
       STOP
     END SELECT
