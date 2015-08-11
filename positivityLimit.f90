@@ -15,16 +15,16 @@ SUBROUTINE limitMeanPositivity(coeffs,elemAvgs,lagGaussVal,gqWeights,gllWeights,
     ! Local variables
     INTEGER :: i,j,l,beta,index
     DOUBLE PRECISION :: avg,valMin,leftTrace,rightTrace,topTrace,botTrace,magicPt
-    DOUBLE PRECISION :: eps,theta,traceMin,massChg
+    DOUBLE PRECISION :: eps,theta,traceMin,massChg,weight
     DOUBLE PRECISION, DIMENSION(0:nOrder,0:nOrder) :: tmpArray
     DOUBLE PRECISION, DIMENSION(0:gqOrder) :: magicTmp
 
     ! External function interface
     INTERFACE
-      DOUBLE PRECISION FUNCTION massDiff(coeff,minWeight,weight)
+      DOUBLE PRECISION FUNCTION massDiff(coeff,weight)
         IMPLICIT NONE
         ! Inputs
-        DOUBLE PRECISION, INTENT(IN) :: coeff,minWeight,weight
+        DOUBLE PRECISION, INTENT(IN) :: coeff,weight
       END FUNCTION massDiff
 
     END INTERFACE
@@ -78,62 +78,59 @@ SUBROUTINE limitMeanPositivity(coeffs,elemAvgs,lagGaussVal,gqWeights,gllWeights,
           ENDDO !j
         ENDDO !i
       CASE(2)
+        ! -- TODO (Devin): Make this more efficient / readable
         DO i = 1,nex
           DO j = 1,ney
             ! Step 1: Pull element average
             avg = elemAvgs(i,j)
 
-            ! Step 2: Truncate along edges
+            ! Step 2: Truncate along edges and evaluate magic point
             massChg = 0D0
+            magicPt = 0D0
             DO beta = 0,nOrder-1
 
-              ! Truncate along left edge
-              massChg = massChg + massDiff(coeffs(i,j,0,beta),gllWeights(0),gllWeights(beta))
-              coeffs(i,j,0,beta) = MAX(coeffs(i,j,0,beta),0D0)
-
-              ! Truncate along top edge
-              massChg = massChg + massDiff(coeffs(i,j,beta,nOrder),gllWeights(0),gllWeights(beta))
-              coeffs(i,j,beta,nOrder) = MAX(coeffs(i,j,beta,nOrder),0D0)
-
-              ! Truncate along bottom edge
               index = nOrder-beta
-              massChg = massChg + massDiff(coeffs(i,j,index,0),gllWeights(0),gllWeights(index))
-              coeffs(i,j,index,0) = MAX(coeffs(i,j,index,0),0D0)
+              leftTrace = coeffs(i,j,0,beta)
+              rightTrace = coeffs(i,j,nOrder,index)
+              topTrace = coeffs(i,j,beta,nOrder)
+              botTrace = coeffs(i,j,index,0)
+
+              weight = gllWeights(0)*gllWeights(beta)
+
+              ! Truncate along left edge
+              massChg = massChg + massDiff(leftTrace,weight)
+              coeffs(i,j,0,beta) = MAX(leftTrace,0D0)
 
               ! Truncate along right edge
-              massChg = massChg + massDiff(coeffs(i,j,nOrder,index),gllWeights(0),gllWeights(index))
-              coeffs(i,j,nOrder,index) = MAX(coeffs(i,j,nOrder,index),0D0)
-            ENDDO !beta
+              massChg = massChg + massDiff(rightTrace,weight)
+              coeffs(i,j,nOrder,index) = MAX(rightTrace,0D0)
 
-            ! Rescale remaining coefficents for conservation
-            theta = avg/MAX((avg+massChg),TINY(1D0))
+              ! Truncate along top edge
+              massChg = massChg + massDiff(topTrace,weight)
+              coeffs(i,j,beta,nOrder) = MAX(topTrace,0D0)
+
+              ! Truncate along bottom edge
+              massChg = massChg + massDiff(botTrace,weight)
+              coeffs(i,j,index,0) = MAX(botTrace,0D0)
+
+              ! Track modification to magic point
+!              magicPt = magicPt + gllWeights(beta)*(mu1*(rightTrace+leftTrace)+mu2*(topTrace+botTrace))
+            ENDDO !beta
+!            magicPt = avg - 0.25D0*gllWeights(0)*magicPt
+!            IF(magicPt .lt. 0D0) THEN
+!              magCount = magCount + 1
+
+              ! Update mass change due to truncating magic point
+!              massChg = massChg - magicPt
+
+              ! Truncate internal nodes to zero
+!              coeffs(i,j,1:nOrder-1,1:nOrder-1) = 0D0
+!            ENDIF
+
+            ! Rescale remaining coefficents to maintain conservation
+            theta = avg/MAX(avg+massChg,TINY(1D0))
             coeffs(i,j,:,:) = theta*coeffs(i,j,:,:)
 
-            ! Step 3: Truncate 'magic point' using updated edge values
-            magicPt = 0D0
-            DO beta = 0,nOrder
-              leftTrace = coeffs(i,j,0,beta)
-              rightTrace = coeffs(i,j,nOrder,beta)
-              topTrace = coeffs(i,j,beta,nOrder)
-              botTrace = coeffs(i,j,beta,0)
-              magicPt = magicPt + gllWeights(beta)*(mu1*(rightTrace+leftTrace)+mu2*(topTrace+botTrace))
-            ENDDO !beta
-            magicPt = avg - 0.25D0*gllWeights(0)*magicPt
-            !magicPt = magicPt/(1D0-2D0*gllWeights(0))
-
-            IF(magicPt .lt. 0D0) THEN
-              !write(*,*) '=== Truncating magic point...'
-              !write(*,*) 'avg = ',avg
-              !write(*,*) 'magicpt =',magicpt
-              ! Truncate internal nodes to zero
-              coeffs(i,j,1:nOrder-1,1:nOrder-1) = 0D0
-
-              ! Rescale edge nodes
-              theta = avg/(MAX((avg-magicPt),TINY(1D0)))
-              !write(*,*) 'theta =',theta
-              coeffs(i,j,:,:) = theta*coeffs(i,j,:,:)
-              magCount = magCount+1
-            ENDIF
           ENDDO !j
         ENDDO !i
     END SELECT
@@ -203,11 +200,11 @@ SUBROUTINE limitNodePositivity(coeffs,elemAvgs,gllWeights,nex,ney,nOrder)
     END SELECT
 END SUBROUTINE limitNodePositivity
 
-DOUBLE PRECISION FUNCTION massDiff(coeff,minWeight,weight)
+DOUBLE PRECISION FUNCTION massDiff(coeff,weight)
   IMPLICIT NONE
   ! Inputs
-  DOUBLE PRECISION, INTENT(IN) :: coeff,minWeight,weight
+  DOUBLE PRECISION, INTENT(IN) :: coeff,weight
   ! Local Variables
 
-  massDiff = 0.25D0*minWeight*weight*ABS(MIN(coeff,0D0))
+  massDiff = -0.25D0*weight*MIN(coeff,0D0)
 END FUNCTION massDiff

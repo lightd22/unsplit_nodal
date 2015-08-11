@@ -127,7 +127,7 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gqWeights,lagrangeDeriv,time
       CALL computeAverages(elemAvg,gllWeights,A1,nex,ney,nOrder,nQuadNodes)
       IF(MINVAL(elemAvg) .lt. 0d0) THEN
         write(*,*) 'WARNING-- ELEMENT MEAN IS NEGATIVE BEFORE FWD STEP',stage
-        !write(*,*) elemAvg(i,j),i,j
+        write(*,*) minval(elemAvg)
       ENDIF
       IF(stage>1) THEN
         CALL limitMeanPositivity(A1,elemAvg,lagGaussVal,gqWeights,gllWeights,&
@@ -179,7 +179,7 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gqWeights,lagrangeDeriv,time
       CALL computeAverages(elemAvg,gllWeights,A,nex,ney,nOrder,nQuadNodes)
       IF(minval(elemAvg) .lt. 0d0) THEN
         write(*,*) 'WARNING-- ELEMENT MEAN IS NEGATIVE BEFORE LIMITING NODES'
-        !write(*,*) elemAvg(i,j),i,j
+        write(*,*) minval(elemAvg)
         !STOP
       ENDIF
       CALL limitNodePositivity(A,elemAvg,gllWeights,nex,ney,nOrder)

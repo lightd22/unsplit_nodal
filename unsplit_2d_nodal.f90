@@ -153,7 +153,7 @@ CONTAINS
 
 		if(nlevel.lt.1) STOP 'nlev should be at least 1 in test2d_modal'
 
-		nmethod_final = 2
+		nmethod_final = 1
 		tmp_method = 0
 		tmp_method(1) = 6
     tmp_method(2) = 7
@@ -228,7 +228,7 @@ CONTAINS
           gqOrder = CEILING((polyOrder+1)/2D0 )-1
           nZSNodes = CEILING((polyOrder+3)/2D0 )-1
           !outdir =
-          write(outdir,'(A,I1,A)') '_matrunc/n',norder,'/meanLimitingComparison/tmarMin/'
+          write(outdir,'(A,I1,A)') '_matrunc/n',norder,'/meanLimitingComparison/tmarFull/'
           WRITE(*,'(A,I1,A)') '   NOTE: Using ',gqOrder+1,' points for gauss quadrature nodes'
           WRITE(*,'(A,I1,A)') '   NOTE: Using ',nZSNodes+1,' GLL nodes for positivity rescaling.'
         CASE(7)
@@ -813,7 +813,7 @@ CONTAINS
 
             CASE(5,9) ! standard cosbell deformation
 				cdf_out = 'dg2d_def_cosbell.nc'
-				tfinal = 5D0
+				tfinal = 10D0
                 A = 0D0
                 DO i=1,nex
                     DO j=1,ney
