@@ -2,7 +2,7 @@ cPROCESSOR := $(shell uname -m)
 
 #ifeq ($(PROCESSOR),ia64)
   F90=gfortran
-  FFLAGS=-g -C -O2 -ffree-form -I/opt/local/include -fbounds-check -ffpe-trap=invalid,overflow,zero #-fcheck=all
+  FFLAGS=-g -C -O3 -ffree-form -I/opt/local/include -fbounds-check -ffpe-trap=invalid,overflow,zero #-fcheck=all
   FFLAGS2=$(FFLAGS)
   LDFLAGS=-L/opt/local/lib -lnetcdf -lnetcdff -framework vecLib
 

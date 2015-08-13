@@ -1,22 +1,23 @@
 SUBROUTINE limitMeanPositivity(coeffs,elemAvgs,lagGaussVal,gqWeights,gllWeights,&
-                    nex,ney,nOrder,gqOrder,nQuad)
+                    nex,ney,nOrder,gqOrder)
     ! Modifies approximating polynomial so that element mean value remains non-negative
     ! after forward update according to Zhang and Shu (2010) Thm 5.2
     USE testParameters
     IMPLICIT NONE
     ! Inputs
-    INTEGER, INTENT(IN) :: nex,ney,nOrder,gqOrder,nQuad
+    INTEGER, INTENT(IN) :: nex,ney,nOrder,gqOrder
     DOUBLE PRECISION, DIMENSION(0:gqOrder), INTENT(IN) :: gqWeights
-    DOUBLE PRECISION, DIMENSION(0:nQuad), INTENT(IN) :: gllWeights
+    DOUBLE PRECISION, DIMENSION(0:nOrder), INTENT(IN) :: gllWeights
     DOUBLE PRECISION, DIMENSION(0:norder,0:gqOrder), INTENT(IN) :: lagGaussVal
     DOUBLE PRECISION, DIMENSION(1:nex,1:ney), INTENT(IN) :: elemAvgs
     ! Outputs
     DOUBLE PRECISION, DIMENSION(0:nOrder,0:nOrder,1:nex,1:ney), INTENT(INOUT) :: coeffs
 
     ! Local variables
-    INTEGER :: i,j,l,beta,index
+    INTEGER :: i,j,l,beta,index,p,q
+    LOGICAL :: isEdge
     DOUBLE PRECISION :: avg,valMin,leftTrace,rightTrace,topTrace,botTrace,magicPt
-    DOUBLE PRECISION :: eps,theta,traceMin,massChg,weight
+    DOUBLE PRECISION :: eps,theta,traceMin,massChg,weight,dCoeff
     DOUBLE PRECISION, DIMENSION(0:nOrder,0:nOrder) :: tmpArray
     DOUBLE PRECISION, DIMENSION(0:gqOrder) :: magicTmp
 
@@ -79,7 +80,6 @@ SUBROUTINE limitMeanPositivity(coeffs,elemAvgs,lagGaussVal,gqWeights,gllWeights,
         ENDDO !j
 
       CASE(2)
-        ! -- TODO (Devin): Make this more efficient / readable
         DO j = 1,ney
           DO i = 1,nex
             ! Step 1: Pull element average
@@ -88,50 +88,54 @@ SUBROUTINE limitMeanPositivity(coeffs,elemAvgs,lagGaussVal,gqWeights,gllWeights,
             ! Step 2: Truncate along edges and evaluate magic point
             massChg = 0D0
             magicPt = 0D0
-            DO beta = 0,nOrder-1
 
-              index = nOrder-beta
-              leftTrace = coeffs(0,beta,i,j)
-              rightTrace = coeffs(nOrder,index,i,j)
-              topTrace = coeffs(beta,nOrder,i,j)
-              botTrace = coeffs(index,0,i,j)
+            ! Top and bottom edges
+            DO q=0,nOrder,nOrder
+              DO p=0,nOrder
+                weight = 0.25*gllWeights(p)*gllWeights(0)
 
-              weight = gllWeights(0)*gllWeights(beta)
+                dCoeff = 0.5*(ABS(coeffs(p,q,i,j))-coeffs(p,q,i,j))
+                massChg = massChg + weight*dCoeff
+                coeffs(p,q,i,j) = coeffs(p,q,i,j)+dCoeff
 
-              ! Truncate along left edge
-              massChg = massChg + massDiff(leftTrace,weight)
-              coeffs(0,beta,i,j) = MAX(leftTrace,0D0)
+!                massChg = massChg - weight*MIN(coeffs(p,q,i,j),0D0)
+!                coeffs(p,q,i,j) = MAX(coeffs(p,q,i,j),0D0)
 
-              ! Truncate along right edge
-              massChg = massChg + massDiff(rightTrace,weight)
-              coeffs(nOrder,index,i,j) = MAX(rightTrace,0D0)
+                ! Track contribution to magic point
+                magicPt = magicPt + weight*coeffs(p,q,i,j)
+              ENDDO !p
+            ENDDO !q
 
-              ! Truncate along top edge
-              massChg = massChg + massDiff(topTrace,weight)
-              coeffs(beta,nOrder,i,j) = MAX(topTrace,0D0)
+            ! Left and right edges
+            DO q = 1,nOrder-1
+              DO p = 0,nOrder,nOrder
+                weight = 0.25*gllWeights(p)*gllWeights(q)
 
-              ! Truncate along bottom edge
-              massChg = massChg + massDiff(botTrace,weight)
-              coeffs(index,0,i,j) = MAX(botTrace,0D0)
+                dCoeff = 0.5*(ABS(coeffs(p,q,i,j))-coeffs(p,q,i,j))
+                massChg = massChg + weight*dCoeff
+                coeffs(p,q,i,j) = coeffs(p,q,i,j)+dCoeff
 
-              ! Track modification to magic point
-!              magicPt = magicPt + gllWeights(beta)*(mu1*(rightTrace+leftTrace)+mu2*(topTrace+botTrace))
-            ENDDO !beta
-!            magicPt = avg - 0.25D0*gllWeights(0)*magicPt
-!            IF(magicPt .lt. 0D0) THEN
-!              magCount = magCount + 1
+!                massChg = massChg - weight*MIN(coeffs(p,q,i,j),0D0)
+!                coeffs(p,q,i,j) = MAX(coeffs(p,q,i,j),0D0)
 
-              ! Update mass change due to truncating magic point
-!              massChg = massChg - magicPt
+                ! Track contribution to magic point
+                magicPt = magicPt + weight*coeffs(p,q,i,j)
+              ENDDO !p
+            ENDDO !q
 
-              ! Truncate internal nodes to zero
-!              coeffs(1:nOrder-1,1:nOrder-1,i,j) = 0D0
-!            ENDIF
+            ! Check magic point for positivity
+            magicPt = avg - magicPt
+            IF(magicPt .lt. 0D0) THEN
+              ! Update mass change due to truncating magic pt
+              massChg = massChg - magicPt
+
+              ! Truncate interior nodes
+              coeffs(1:nOrder-1,1:nOrder-1,i,j) = 0D0
+            ENDIF
 
             ! Rescale remaining coefficents to maintain conservation
             theta = avg/MAX(avg+massChg,TINY(1D0))
             coeffs(:,:,i,j) = theta*coeffs(:,:,i,j)
-
           ENDDO !j
         ENDDO !i
     END SELECT
@@ -185,7 +189,7 @@ SUBROUTINE limitNodePositivity(coeffs,elemAvgs,gllWeights,nex,ney,nOrder)
           DO p=0,nOrder
             DO q=0,nOrder
               Mt = Mt+gllWeights(p)*gllWeights(q)*coeffs(p,q,i,j)
-              coeffs(i,j,p,q) = MAX(coeffs(i,j,p,q),0D0) ! Truncate negative nodes
+              coeffs(p,q,i,j) = MAX(coeffs(p,q,i,j),0D0) ! Truncate negative nodes
               Mp = Mp+gllWeights(p)*gllWeights(q)*coeffs(p,q,i,j)
             ENDDO !q
           ENDDO !p

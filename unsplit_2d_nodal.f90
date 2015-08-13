@@ -155,8 +155,8 @@ CONTAINS
 
 		nmethod_final = 1
 		tmp_method = 0
-		tmp_method(1) = 1
-    tmp_method(2) = 7
+		tmp_method(1) = 6
+    tmp_method(2) = 6
     tmp_method(3) = 6
     !tmp_method(4) = 4
     !tmp_method(5) = 5
@@ -228,6 +228,7 @@ CONTAINS
           gqOrder = CEILING((polyOrder+1)/2D0 )-1
           nZSNodes = CEILING((polyOrder+3)/2D0 )-1
           !outdir =
+          !write(outdir,'(A,I1,A)') '_matrunc/n',norder,'/meanLimitingComparison/tmarMin/'
           write(outdir,'(A,I1,A)') '_matrunc/n',norder,'/meanLimitingComparison/tmarFull/'
           WRITE(*,'(A,I1,A)') '   NOTE: Using ',gqOrder+1,' points for gauss quadrature nodes'
           WRITE(*,'(A,I1,A)') '   NOTE: Using ',nZSNodes+1,' GLL nodes for positivity rescaling.'
@@ -809,7 +810,7 @@ CONTAINS
 
             CASE(5,9) ! standard cosbell deformation
       				cdf_out = 'dg2d_def_cosbell.nc'
-      				tfinal = 10D0
+      				tfinal = 40D0
               A = 0D0
               DO j=1,ney
                 DO i=1,nex

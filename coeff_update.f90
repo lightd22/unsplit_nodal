@@ -46,20 +46,19 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gqWeights,lagrangeDeriv,time
 
 	REAL(KIND=8), DIMENSION(0:norder,0:norder) :: tmpArray
 
-  REAL(KIND=4), DIMENSION(2) :: tstart,tend
 	REAL(KIND=4) :: t0,tf,t1
 
   INTERFACE
     SUBROUTINE limitMeanPositivity(coeffs,elemAvgs,lagGaussVal,gqWeights,gllWeights,&
-                        nex,ney,nOrder,gqOrder,nQuad)
+                        nex,ney,nOrder,gqOrder)
         ! Modifies approximating polynomial so that element mean value remains non-negative
         ! after forward update according to Zhang and Shu (2010) Thm 5.2
         USE testParameters
         IMPLICIT NONE
         ! Inputs
-        INTEGER, INTENT(IN) :: nex,ney,nOrder,gqOrder,nQuad
+        INTEGER, INTENT(IN) :: nex,ney,nOrder,gqOrder
         DOUBLE PRECISION, DIMENSION(0:gqOrder), INTENT(IN) :: gqWeights
-        DOUBLE PRECISION, DIMENSION(0:nQuad), INTENT(IN) :: gllWeights
+        DOUBLE PRECISION, DIMENSION(0:nOrder), INTENT(IN) :: gllWeights
         DOUBLE PRECISION, DIMENSION(0:norder,0:gqOrder), INTENT(IN) :: lagGaussVal
         DOUBLE PRECISION, DIMENSION(1:nex,1:ney), INTENT(IN) :: elemAvgs
         ! Outputs
@@ -126,9 +125,13 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gqWeights,lagrangeDeriv,time
         write(*,*) minval(elemAvg)
       ENDIF
       IF(stage>1) THEN
-        CALL limitMeanPositivity(A1,elemAvg,lagGaussVal,gqWeights,gllWeights,&
-                                nex,ney,nOrder,gqOrder,nQuadNodes)
-!        CALL limitNodePositivity(A1,elemAvg,gllWeights,nex,ney,nOrder)
+!        CALL CPU_TIME(t0)
+!        CALL limitMeanPositivity(A1,elemAvg,lagGaussVal,gqWeights,gllWeights,&
+!                                nex,ney,nOrder,gqOrder)
+        CALL limitNodePositivity(A1,elemAvg,gllWeights,nex,ney,nOrder)
+!        CALL CPU_TIME(tf)
+!        tf = tf - t0
+!        write(*,*) 'tend=',tf
       ENDIF
     ENDIF !dozshulimit
 
@@ -146,7 +149,7 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gqWeights,lagrangeDeriv,time
       		DO m=0,norder
         		A2(l,m,i,j) = A1(l,m,i,j)+ &
     				coef1*dadt(i,j,l,m,currElemQuad,Fhat,Ghat,currElemU,currElemV,gllWeights,&
-                             lagrangeDeriv,dxel,dyel,nQuadNodes,norder,nex,ney)
+                       lagrangeDeriv,dxel,dyel,nQuadNodes,norder,nex,ney)
         	ENDDO !m
         ENDDO!l
       ENDDO !i
@@ -166,11 +169,11 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gqWeights,lagrangeDeriv,time
     IF(dozshulimit) THEN
       ! Compute element average via quadrature at next time level
       CALL computeAverages(elemAvg,gllWeights,A,nex,ney,nOrder,nQuadNodes)
-      IF(minval(elemAvg) .lt. 0d0) THEN
-        write(*,*) 'WARNING-- ELEMENT MEAN IS NEGATIVE BEFORE LIMITING NODES'
-        write(*,*) minval(elemAvg)
+!      IF(minval(elemAvg) .lt. 0d0) THEN
+!        write(*,*) 'WARNING-- ELEMENT MEAN IS NEGATIVE BEFORE LIMITING NODES'
+!        write(*,*) minval(elemAvg)
         !STOP
-      ENDIF
+!      ENDIF
       CALL limitNodePositivity(A,elemAvg,gllWeights,nex,ney,nOrder)
     ENDIF !dozshulimit
 
@@ -228,7 +231,7 @@ SUBROUTINE numFlux(Fhat,Ghat,u,v,edgeValsNS,edgeValsEW,nQuadNodes,norder,nex,ney
 	IMPLICIT NONE
 	! Inputs
 	INTEGER, INTENT(IN) :: nQuadNodes,norder,nex,ney
-    REAL(KIND=8), DIMENSION(0:nQuadNodes,0:nQuadNodes,1:nex,1:ney) :: u, v
+  REAL(KIND=8), DIMENSION(0:nQuadNodes,0:nQuadNodes,1:nex,1:ney) :: u, v
 	REAL(KIND=8), DIMENSION(0:1,0:nQuadNodes,0:nex+1,1:ney), INTENT(IN) :: edgeValsEW
 	REAL(KIND=8), DIMENSION(0:1,0:nQuadNodes,1:nex,0:ney+1), INTENT(IN) :: edgeValsNS
 
@@ -327,9 +330,9 @@ END SUBROUTINE evalExpansion
 REAL(KIND=8) FUNCTION vel_update(t)
 		IMPLICIT NONE
 		REAL(KIND=8), INTENT(IN) :: t
-	    REAL(KIND=8) :: pi
-	    REAL(KIND=8), parameter :: t_period = 5.d0
+    REAL(KIND=8) :: pi
+    REAL(KIND=8), parameter :: t_period = 5.d0
 
-	    pi = DACOS(-1D0)
-	    vel_update = DCOS(pi*t/t_period)
+    pi = DACOS(-1D0)
+    vel_update = DCOS(pi*t/t_period)
 END FUNCTION vel_update
