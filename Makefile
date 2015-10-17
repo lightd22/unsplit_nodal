@@ -2,7 +2,7 @@ cPROCESSOR := $(shell uname -m)
 
 #ifeq ($(PROCESSOR),ia64)
   F90=gfortran
-  FFLAGS=-g -C -O3 -ffree-form -I/opt/local/include -fbounds-check -ffpe-trap=invalid,overflow,zero #-fcheck=all
+  FFLAGS=-g -C -O2 -ffree-form -I/opt/local/include -fbounds-check -ffpe-trap=invalid,overflow,zero #-fcheck=all
   FFLAGS2=$(FFLAGS)
   LDFLAGS=-L/opt/local/lib -lnetcdf -lnetcdff -framework vecLib
 
@@ -23,9 +23,11 @@ SOURCES= nDGmod.f90 \
 				 coeff_update.f90 \
 				 nDGsweep.f90 \
 				 positivityLimit.f90 \
-				 computeAverages.f90
+				 computeAverages.f90 \
 
-MODULES= testParameters.f90
+MODULES= testParameters.f90 \
+         splitFunctions.f90 \
+				 splitEvalFlux.f90
 OBJECTS=$(SOURCES:.f90=.o)
 MODOBJ=$(MODULES:.f90=.o)
 

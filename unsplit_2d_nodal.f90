@@ -129,7 +129,7 @@ CONTAINS
 		INTEGER :: nmethod, nmethod_final,imethod,ierr,nstep,nout
 		INTEGER :: nQuadNodes,norder,p,gqOrder,nZSNodes
 
-		LOGICAL :: dozshulimit,doStrangSplit,oddstep,dofctlimit
+		LOGICAL :: dozshulimit,doStrangSplit,oddstep
 
 		CHARACTER(len=80) :: cdf_out,outdir
 
@@ -137,7 +137,7 @@ CONTAINS
 		REAL(KIND=8) :: dxel,dyel,tfinal, tmp_umax, tmp_vmax, dxm, dym,dt, time,calculatedMu
     DOUBLE PRECISION :: mux, muy
     REAL(KIND=8), DIMENSION(1:2) :: xEdge,yEdge
-		REAL(KIND=8), ALLOCATABLE, DIMENSION(:,:) :: Leg,lagrangeDeriv,lagGaussVal,C0,C,tmpArray,tmpErr,lagValsZS
+		REAL(KIND=8), ALLOCATABLE, DIMENSION(:,:) :: lagrangeDeriv,lagGaussVal,C0,C,tmpArray,tmpErr,lagValsZS
     REAL(KIND=8), ALLOCATABLE, DIMENSION(:,:) :: xQuad, yQuad
 		REAL(KIND=8), ALLOCATABLE, DIMENSION(:) :: gllNodes,gllWeights,gaussNodes,gaussWeights,x_elcent,y_elcent,&
                                                xplot,yplot,xiplot,etaplot,nodeSpacing,lambda,quadZSNodes,quadZSWeights
@@ -155,8 +155,8 @@ CONTAINS
 
 		nmethod_final = 1
 		tmp_method = 0
-		tmp_method(1) = 6
-    tmp_method(2) = 6
+		tmp_method(1) = 2
+    tmp_method(2) = 2
     tmp_method(3) = 6
     !tmp_method(4) = 4
     !tmp_method(5) = 5
@@ -166,7 +166,8 @@ CONTAINS
 
       doZShuLimit = .FALSE.
       doStrangSplit = .FALSE.
-      dofctlimit = .FALSE.
+      doFluxMod = .FALSE.
+      doPosLim = .FALSE.
 
 			SELECT CASE(imethod)
 				CASE(1)
@@ -181,6 +182,7 @@ CONTAINS
 				CASE(2)
 				  WRITE(*,*) '2D Nodal, Unsplit, Zhang and Shu Limiting'
 				  dozshulimit = .TRUE.
+          doPosLim = .FALSE.
           limitingMeth = 1
 				  norder = polyOrder
           nQuadNodes = norder
@@ -202,6 +204,8 @@ CONTAINS
           write(*,*) '2D Nodal, Strang Split, Zhang and Shu Limiting'
           dozshulimit = .TRUE.
           doStrangSplit = .TRUE.
+          doPosLim = .TRUE.
+          limitingMeth = 1
           outdir = '_ndgsplzs/n5/pRefine/rescale/'
           nOrder = polyOrder
           nQuadNodes = nOrder
@@ -211,8 +215,10 @@ CONTAINS
           WRITE(*,'(A,I1,A)') '   NOTE: Using ',nZSNodes+1,' GLL nodes for positivity limiting.'
         CASE(5)
           WRITE(*,*) '2D Nodal, Strang Split, FCT + Positivity limiting'
-          dofctlimit = .TRUE.
+          doFluxMod = .TRUE.
           doStrangSplit = .TRUE.
+          doPosLim = .TRUE.
+          limitingMeth = 2
           nOrder = polyOrder
           nQuadNodes = nOrder
           gqOrder = 1
@@ -222,19 +228,21 @@ CONTAINS
         CASE(6)
           WRITE(*,*) '2D Nodal, Unsplit, MA Truncation'
           dozshulimit = .TRUE.
+          doPosLim = .TRUE.
           limitingMeth = 2
           norder = polyOrder
           nQuadNodes = norder
           gqOrder = CEILING((polyOrder+1)/2D0 )-1
           nZSNodes = CEILING((polyOrder+3)/2D0 )-1
-          !outdir =
           !write(outdir,'(A,I1,A)') '_matrunc/n',norder,'/meanLimitingComparison/tmarMin/'
-          write(outdir,'(A,I1,A)') '_matrunc/n',norder,'/meanLimitingComparison/tmarFull/'
-          WRITE(*,'(A,I1,A)') '   NOTE: Using ',gqOrder+1,' points for gauss quadrature nodes'
-          WRITE(*,'(A,I1,A)') '   NOTE: Using ',nZSNodes+1,' GLL nodes for positivity rescaling.'
+          !write(outdir,'(A,I1,A)') '_matrunc/n',norder,'/meanLimitingComparison/tmarFull/'
+          write(outdir,'(A,I1,A)') '_matrunc/n',nOrder,'/'
+          !WRITE(*,'(A,I1,A)') '   NOTE: Using ',gqOrder+1,' points for gauss quadrature nodes'
+          !WRITE(*,'(A,I1,A)') '   NOTE: Using ',nZSNodes+1,' GLL nodes for positivity rescaling.'
         CASE(7)
           WRITE(*,*) '2D Nodal, Unsplit, MA Truncation + mean limiting at ZSmin'
           dozshulimit = .TRUE.
+          doPosLim = .TRUE.
           limitingMeth = 3
           norder = polyOrder
           nQuadNodes = norder
@@ -244,7 +252,18 @@ CONTAINS
           write(outdir,'(A,I1,A)') '_matrunc/n',norder,'/meanLimitingComparison/zsMin/'
           WRITE(*,'(A,I1,A)') '   NOTE: Using ',gqOrder+1,' points for gauss quadrature nodes'
           WRITE(*,'(A,I1,A)') '   NOTE: Using ',nZSNodes+1,' GLL nodes for positivity rescaling.'
-
+        CASE(8)
+          WRITE(*,*) '2D Nodal, Split, Lambda Limiting + TMAR each stage'
+          doFluxMod = .TRUE.
+          doStrangSplit = .TRUE.
+          doPosLim = .TRUE.
+          limitingMeth = 3
+          nOrder = polyOrder
+          nQuadNodes = nOrder
+          gqOrder = 1
+          nZSNodes = nQuadNodes
+          outdir = '_ndgspllm'
+          WRITE(*,'(A,I1,A)') '   NOTE: Using ',nZSNodes+1,' GLL nodes for positivity limiting.'
 			END SELECT
       WRITE(*,*) '  N=',norder,'Uses a total of',(norder+1)**2,'Lagrange basis polynomials per element'
       WRITE(*,*) 'Output directory is: ',outdir
@@ -347,7 +366,7 @@ CONTAINS
 
 
 				! Initialize A, u, and v
-        CALL init2d(ntest,nex,ney,nQuadNodes,norder,A,u0,v0,x_elcent,y_elcent,gllNodes,gllWeights,xEdge,yEdge,cdf_out,&
+        CALL init2d(ntest,nex,ney,nQuadNodes,norder,A,u0,v0,x_elcent,y_elcent,gllNodes,xEdge,yEdge,cdf_out,&
                     tfinal,xQuad,yQuad)
 
         IF(DEBUG) THEN
@@ -441,7 +460,7 @@ CONTAINS
             CALL CPU_TIME(t1)
             CALL strangSplitUpdate(A,u0,v0,gllNodes,gllWeights,time,lagrangeDeriv,&
                          dt,dxel,dyel,nOrder,nQuadNodes,nex,ney,oddstep,transient,&
-                         dozshulimit,dofctlimit,nZSnodes,quadZSWeights,lagValsZS,n)
+                         dozshulimit,nZSnodes,quadZSWeights,lagValsZS)
             CALL CPU_TIME(t2)
             time = time + dt
 
@@ -558,331 +577,322 @@ CONTAINS
 
 	END SUBROUTINE test2d_nodal
 
-    SUBROUTINE strangSplitUpdate(A,u0,v0,gllNodes,gllWeights,time,lagrangeDeriv,&
-                                 dt,dxel,dyel,nOrder,nQuadNodes,nex,ney,oddstep,transient,&
-                                 dozshulimit,dofctlimit,nZSnodes,quadZSWeights,lagValsZS,nstep)
+  SUBROUTINE strangSplitUpdate(A,u0,v0,gllNodes,gllWeights,time,lagrangeDeriv,&
+                               dt,dxel,dyel,nOrder,nQuadNodes,nex,ney,oddstep,transient,&
+                               dozshulimit,nZSnodes,quadZSWeights,lagValsZS)
 
-    ! =====================================================================================================
-    ! strangSplitUpdate is responsible for selecting which slice of subcell volumes is sent to mDGsweep for update to time
-    ! level tn+1 following a Strang splitting.
-    ! For Strang splitting:
-    !   - Each slice is updated
-    !   - Odd steps: x-slices are updated first (horizontal advection) then y-slices are updated (vertical advection)
-    !   - Even steps: y-slices are updated first then x-slices are updated (vertical advection)
-    ! =====================================================================================================
+  ! =====================================================================================================
+  ! strangSplitUpdate is responsible for selecting which slice of subcell volumes is sent to mDGsweep for update to time
+  ! level tn+1 following a Strang splitting.
+  ! For Strang splitting:
+  !   - Each slice is updated
+  !   - Odd steps: x-slices are updated first (horizontal advection) then y-slices are updated (vertical advection)
+  !   - Even steps: y-slices are updated first then x-slices are updated (vertical advection)
+  ! =====================================================================================================
 
-        IMPLICIT NONE
-        ! Inputs
-        INTEGER, INTENT(IN) :: nOrder,nQuadNodes,nex,ney,nZSnodes,nstep
-        REAL(KIND=8), INTENT(IN) :: dt,dxel,dyel,time
-        REAL(KIND=8), DIMENSION(0:nQuadNodes,0:nQuadNodes,1:nex,1:ney), INTENT(IN) :: u0,v0
-        REAL(KIND=8), DIMENSION(0:norder,0:nQuadNodes), INTENT(IN) :: lagrangeDeriv
-        REAL(KIND=8), DIMENSION(0:nQuadNodes), INTENT(IN) :: gllNodes,gllWeights
-        REAL(KIND=8), DIMENSION(0:nZSnodes), INTENT(IN) :: quadZSWeights
-        REAL(KIND=8), DIMENSION(0:nOrder,0:nZSnodes), INTENT(IN) :: lagValsZS
-        LOGICAL, INTENT(IN) :: oddstep,dozshulimit,dofctlimit,transient
-        ! Outputs
-        REAL(KIND=8), DIMENSION(0:nOrder,0:nOrder,1:nex,1:ney), INTENT(INOUT) :: A
-        ! Local variables
-        INTEGER :: i,j,k,whichEl,whichLvl,totalLvls
-        REAL(KIND=8), DIMENSION(1:nex,0:nOrder) :: A1dx
-        REAL(KIND=8), DIMENSION(1:ney,0:nOrder) :: A1dy
-        REAL(KIND=8), DIMENSION(1:nex,0:nQuadNodes) :: u1dx
-        REAL(KIND=8), DIMENSION(1:ney,0:nQuadNodes) :: v1dy
+    IMPLICIT NONE
+    ! Inputs
+    INTEGER, INTENT(IN) :: nOrder,nQuadNodes,nex,ney,nZSnodes
+    REAL(KIND=8), INTENT(IN) :: dt,dxel,dyel,time
+    REAL(KIND=8), DIMENSION(0:nQuadNodes,0:nQuadNodes,1:nex,1:ney), INTENT(IN) :: u0,v0
+    REAL(KIND=8), DIMENSION(0:norder,0:nQuadNodes), INTENT(IN) :: lagrangeDeriv
+    REAL(KIND=8), DIMENSION(0:nQuadNodes), INTENT(IN) :: gllNodes,gllWeights
+    REAL(KIND=8), DIMENSION(0:nZSnodes), INTENT(IN) :: quadZSWeights
+    REAL(KIND=8), DIMENSION(0:nOrder,0:nZSnodes), INTENT(IN) :: lagValsZS
+    LOGICAL, INTENT(IN) :: oddstep,dozshulimit,transient
+    ! Outputs
+    REAL(KIND=8), DIMENSION(0:nOrder,0:nOrder,1:nex,1:ney), INTENT(INOUT) :: A
+    ! Local variables
+    INTEGER :: i,j,k,whichEl,whichLvl,totalLvls
+    REAL(KIND=8), DIMENSION(0:nOrder,1:nex) :: A1dx
+    REAL(KIND=8), DIMENSION(0:nOrder,1:ney) :: A1dy
+    REAL(KIND=8), DIMENSION(0:nQuadNodes,1:nex) :: u1dx
+    REAL(KIND=8), DIMENSION(0:nQuadNodes,1:ney) :: v1dy
 
-        IF(oddstep) THEN
-          ! ===================================
-          ! Perform sweeps in x-direction first
-          ! ===================================
-          totalLvls = ney*(nOrder+1)
-          DO i=0,totalLvls-1
-            whichEl = i/(nOrder+1) + 1
-            whichLvl = MOD(i,nOrder+1)
-            A1dx(1:nex,:) = A(:,whichLvl,1:nex,whichEl)
-            u1dx(1:nex,:) = u0(:,whichLvl,1:nex,whichEl)
+    IF(oddstep) THEN
+      ! ===================================
+      ! Perform sweeps in x-direction first
+      ! ===================================
+      totalLvls = ney*(nOrder+1)
+      DO i=0,totalLvls-1
+        whichEl = i/(nOrder+1) + 1
+        whichLvl = MOD(i,nOrder+1)
+        A1dx(:,1:nex) = A(:,whichLvl,1:nex,whichEl)
+        u1dx(:,1,nex) = u0(:,whichLvl,1:nex,whichEl)
 
-            IF(dozshulimit .AND. nstep .eq. 1) THEN
-              ! Modify ICs according to Z&S limiting
-              IF(nZSnodes .eq. nQuadNodes) THEN
-                CALL split_polyMod(A1dx,gllWeights,nex,nOrder,nQuadNodes,lagValsZS,0)
-              ELSE
-                CALL split_polyMod(A1dx,quadZSWeights,nex,nOrder,nZSNodes,lagValsZS,1)
-              ENDIF
-            ENDIF
+        CALL nDGsweep(A1dx,nex,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u1dx,lagrangeDeriv,time,dt,transient,&
+                      dozshulimit,nZSnodes,quadZSWeights,lagValsZS)
+        ! Update solution
+        A(:,whichLvl,1:nex,whichEl) = A1dx(:,1:nex)
+      ENDDO !i
 
-            CALL nDGsweep(A1dx,nex,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u1dx,lagrangeDeriv,time,dt,transient,&
-                          dozshulimit,dofctlimit,nZSnodes,quadZSWeights,lagValsZS)
-            ! Update solution
-            A(:,whichLvl,1:nex,whichEl) = A1dx(1:nex,:)
-          ENDDO !i
+      totalLvls = nex*(nOrder+1)
+      DO i=0,totalLvls-1
+        whichEl = i/(nOrder+1) + 1
+        whichLvl = MOD(i,nOrder+1)
+        A1dy(:,1:ney) = A(whichLvl,:,whichEl,1:ney)
+        v1dy(:,1:ney) = v0(whichLvl,:,whichEl,1:ney)
 
-          totalLvls = nex*(nOrder+1)
-          DO i=0,totalLvls-1
-            whichEl = i/(nOrder+1) + 1
-            whichLvl = MOD(i,nOrder+1)
-            A1dy(1:ney,:) = A(whichLvl,:,whichEl,1:ney)
-            v1dy(1:ney,:) = v0(whichLvl,:,whichEl,1:ney)
+        CALL nDGsweep(A1dy,ney,dyel,nOrder,nQuadNodes,gllNodes,gllWeights,v1dy,lagrangeDeriv,time,dt,transient,&
+                      dozshulimit,nZSnodes,quadZSWeights,lagValsZS)
+        ! Update solution
+        A(whichLvl,:,whichEl,1:ney) = A1dy(:,1:ney)
+      ENDDO !i
+    ELSE
+      ! ===================================
+      ! Perform sweeps in y-direction first
+      ! ===================================
+      totalLvls = nex*(nOrder+1)
+      DO i=0,totalLvls-1
+        whichEl = i/(nOrder+1) + 1
+        whichLvl = MOD(i,nOrder+1)
+        A1dy(:,1:ney) = A(whichLvl,:,whichEl,1:ney)
+        v1dy(:,1:ney) = v0(whichLvl,:,whichEl,1:ney)
 
-            CALL nDGsweep(A1dy,ney,dyel,nOrder,nQuadNodes,gllNodes,gllWeights,v1dy,lagrangeDeriv,time,dt,transient,&
-                          dozshulimit,dofctlimit,nZSnodes,quadZSWeights,lagValsZS)
-            ! Update solution
-            A(whichLvl,:,whichEl,1:ney) = A1dy(1:ney,:)
-          ENDDO !i
-        ELSE
-          ! ===================================
-          ! Perform sweeps in y-direction first
-          ! ===================================
-          totalLvls = nex*(nOrder+1)
-          DO i=0,totalLvls-1
-            whichEl = i/(nOrder+1) + 1
-            whichLvl = MOD(i,nOrder+1)
-            A1dy(1:ney,:) = A(whichLvl,:,whichEl,1:ney)
-            v1dy(1:ney,:) = v0(whichLvl,:,whichEl,1:ney)
+        CALL nDGsweep(A1dy,ney,dyel,nOrder,nQuadNodes,gllNodes,gllWeights,v1dy,lagrangeDeriv,time,dt,transient,&
+                      dozshulimit,nZSnodes,quadZSWeights,lagValsZS)
+        ! Update solution
+        A(whichLvl,:,whichEl,1:ney) = A1dy(:,1:ney)
+      ENDDO !i
 
-            CALL nDGsweep(A1dy,ney,dyel,nOrder,nQuadNodes,gllNodes,gllWeights,v1dy,lagrangeDeriv,time,dt,transient,&
-                          dozshulimit,dofctlimit,nZSnodes,quadZSWeights,lagValsZS)
-            ! Update solution
-            A(whichLvl,:,whichEl,1:ney) = A1dy(1:ney,:)
-          ENDDO !i
+      totalLvls = ney*(nOrder+1)
+      DO i=0,totalLvls-1
+        whichEl = i/(nOrder+1) + 1
+        whichLvl = MOD(i,nOrder+1)
+        A1dx(:,1:nex) = A(1:nex,whichEl,:,whichLvl)
+        u1dx(:,1:nex) = u0(1:nex,whichEl,:,whichLvl)
 
-          totalLvls = ney*(nOrder+1)
-          DO i=0,totalLvls-1
-            whichEl = i/(nOrder+1) + 1
-            whichLvl = MOD(i,nOrder+1)
-            A1dx(1:nex,:) = A(1:nex,whichEl,:,whichLvl)
-            u1dx(1:nex,:) = u0(1:nex,whichEl,:,whichLvl)
+        CALL nDGsweep(A1dx,nex,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u1dx,lagrangeDeriv,time,dt,transient,&
+                      dozshulimit,nZSnodes,quadZSWeights,lagValsZS)
+        ! Update solution
+        A(1:nex,whichEl,:,whichLvl) = A1dx(:,1:nex)
+      ENDDO !i
+    ENDIF !oddstep
+  END SUBROUTINE strangSplitUpdate
 
-            CALL nDGsweep(A1dx,nex,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u1dx,lagrangeDeriv,time,dt,transient,&
-                          dozshulimit,dofctlimit,nZSnodes,quadZSWeights,lagValsZS)
-            ! Update solution
-            A(1:nex,whichEl,:,whichLvl) = A1dx(1:nex,:)
-          ENDDO !i
-        ENDIF !oddstep
-    END SUBROUTINE strangSplitUpdate
+  SUBROUTINE init2d(ntest,nex,ney,nQuadNodes,norder,A,u0,v0,x_elcent,y_elcent,gllNodes,xEdge,yEdge,cdf_out,tfinal,&
+                      xQuad,yQuad)
+  ! ----
+  !  Computes initial conditons for coefficient matrix (by simple evaluation of IC function) and initial velocities (via a streamfunction)
+  !  Also sets the final time and output file name
+  ! ----
+      IMPLICIT NONE
+      !Inputs
+      INTEGER, INTENT(IN) :: ntest,nex,ney,nQuadNodes,norder
+      REAL(KIND=8), DIMENSION(1:nex), INTENT(IN) :: x_elcent
+      REAL(KIND=8), DIMENSION(1:ney), INTENT(IN) :: y_elcent
+      REAL(KIND=8), DIMENSION(0:nQuadNodes) :: gllNodes
+      REAL(KIND=8), DIMENSION(1:2), INTENT(IN) :: xEdge,yEdge
+      !Outputs
+      REAL(KIND=8), DIMENSION(0:norder,0:norder,1:nex,1:ney), INTENT(OUT) :: A,u0,v0
+      CHARACTER(LEN=*), INTENT(OUT) :: cdf_out
+      REAL(KIND=8), INTENT(OUT) :: tfinal
+      !Local Variables
+      REAL(KIND=8), DIMENSION(0:norder,1:nex), INTENT(OUT) :: xQuad
+      REAL(KIND=8), DIMENSION(0:norder,1:ney), INTENT(OUT) :: yQuad
+      REAL(KIND=8), DIMENSION(0:norder,0:norder,0:1,1:nex,1:ney) :: psiu,psiv
+      REAL(KIND=8), DIMENSION(0:norder,0:norder) :: r
+      REAL(KIND=8), DIMENSION(1:2) :: domainCenter
+      REAL(KIND=8) :: PI,dxmin,dymin,dxel,dyel,xWidth,yWidth,xc,yc,spd
+      INTEGER :: i,j,k,l
 
-    SUBROUTINE init2d(ntest,nex,ney,nQuadNodes,norder,A,u0,v0,x_elcent,y_elcent,gllNodes,gllWeights,xEdge,yEdge,cdf_out,tfinal,&
-                        xQuad,yQuad)
-    ! ----
-    !  Computes initial conditons for coefficient matrix (by simple evaluation of IC function) and initial velocities (via a streamfunction)
-    !  Also sets the final time and output file name
-    ! ----
-        IMPLICIT NONE
-        !Inputs
-        INTEGER, INTENT(IN) :: ntest,nex,ney,nQuadNodes,norder
-        REAL(KIND=8), DIMENSION(1:nex), INTENT(IN) :: x_elcent
-        REAL(KIND=8), DIMENSION(1:ney), INTENT(IN) :: y_elcent
-        REAL(KIND=8), DIMENSION(0:nQuadNodes) :: gllNodes,gllWeights
-        REAL(KIND=8), DIMENSION(1:2), INTENT(IN) :: xEdge,yEdge
-        !Outputs
-        REAL(KIND=8), DIMENSION(0:norder,0:norder,1:nex,1:ney), INTENT(OUT) :: A,u0,v0
-        CHARACTER(LEN=*), INTENT(OUT) :: cdf_out
-        REAL(KIND=8), INTENT(OUT) :: tfinal
-        !Local Variables
-        REAL(KIND=8), DIMENSION(0:norder,1:nex), INTENT(OUT) :: xQuad
-        REAL(KIND=8), DIMENSION(0:norder,1:ney), INTENT(OUT) :: yQuad
-        REAL(KIND=8), DIMENSION(0:norder,0:norder,0:1,1:nex,1:ney) :: psiu,psiv
-        REAL(KIND=8), DIMENSION(0:norder,0:norder) :: r
-        REAL(KIND=8), DIMENSION(1:2) :: domainCenter
-        REAL(KIND=8) :: PI,dxmin,dymin,dxel,dyel,xWidth,yWidth,xc,yc,spd
-        INTEGER :: i,j,k,l
+	    PI = DACOS(-1D0)
+      spd = 2D0*PI
+      IF(ntest .eq. 11) spd = 1D0
 
-		    PI = DACOS(-1D0)
-        spd = 2D0*PI
-        IF(ntest .eq. 11) spd = 1D0
+      xWidth = xEdge(2)-xEdge(1)
+      yWidth = yEdge(2)-yEdge(1)
+      domainCenter(1) = xEdge(1)+xWidth/2D0
+      domainCenter(2) = yEdge(1)+yWidth/2D0
 
-        xWidth = xEdge(2)-xEdge(1)
-        yWidth = yEdge(2)-yEdge(1)
-        domainCenter(1) = xEdge(1)+xWidth/2D0
-        domainCenter(2) = yEdge(1)+yWidth/2D0
+      dxel = x_elcent(2) - x_elcent(1)
+      dyel = y_elcent(2) - y_elcent(1)
 
-        dxel = x_elcent(2) - x_elcent(1)
-        dyel = y_elcent(2) - y_elcent(1)
+	    ! Minimum internode spacing, mapped to physical domain
+      dxmin = (dxel/2D0)*MINVAL(gllNodes(1:nQuadNodes)-gllNodes(0:nQuadNodes-1))
+      dymin = (dyel/2D0)*MINVAL(gllNodes(1:nQuadNodes)-gllNodes(0:nQuadNodes-1))
 
-		    ! Minimum internode spacing, mapped to physical domain
-	      dxmin = (dxel/2D0)*MINVAL(gllNodes(1:nQuadNodes)-gllNodes(0:nQuadNodes-1))
-	      dymin = (dyel/2D0)*MINVAL(gllNodes(1:nQuadNodes)-gllNodes(0:nQuadNodes-1))
+      ! Quadrature locations, mapped to physical domain
+      DO i=1,nex
+        xQuad(:,i) = x_elcent(i) + (dxel/2d0)*gllNodes(:)
+      ENDDO!i
+      DO j=1,ney
+        yQuad(:,j) = y_elcent(j) + (dyel/2d0)*gllNodes(:)
+      ENDDO!j
 
-        ! Quadrature locations, mapped to physical domain
-        DO i=1,nex
-          xQuad(:,i) = x_elcent(i) + (dxel/2d0)*gllNodes(:)
-        ENDDO!i
-        DO j=1,ney
-          yQuad(:,j) = y_elcent(j) + (dyel/2d0)*gllNodes(:)
-        ENDDO!j
-
-        ! Fill streamfunction array
-        SELECT CASE(ntest)
-        CASE(1,8:10) ! uniform velocity u = v = 1
-          DO j=1,ney
-            DO i=1,nex
-              DO k=0,norder
-                psiu(k,:,1,i,j) = (yQuad(:,j) + dymin/2d0) - xQuad(k,i)
-                psiu(k,:,0,i,j) = (yQuad(:,j) - dymin/2d0) - xQuad(k,i)
-
-                psiv(k,:,1,i,j) = yQuad(:,j) - (xQuad(k,i) + dxmin/2d0)
-                psiv(k,:,0,i,j) = yQuad(:,j) - (xQuad(k,i) - dxmin/2d0)
-              ENDDO !k
-            ENDDO !j
-          ENDDO !i
-        CASE(2:4,11) ! Solid body rotation
-          ! pi*( (x-0.5)**2 + (y-0.5)**2 )
-          DO j=1,ney
-            DO i=1,nex
-              DO k=0,norder
-             psiu(k,:,1,i,j) = spd*0.5D0*( (xQuad(k,i)-domainCenter(1))**2 + (yQuad(:,j) + dymin/2d0 -domainCenter(2))**2 )
-             psiu(k,:,0,i,j) = spd*0.5D0*( (xQuad(k,i)-domainCenter(1))**2 + (yQuad(:,j) - dymin/2d0 -domainCenter(2))**2 )
-
-             psiv(k,:,1,i,j) = spd*0.5D0*( (xQuad(k,i) + dxmin/2d0-domainCenter(1))**2 + (yQuad(:,j) -domainCenter(2))**2 )
-             psiv(k,:,0,i,j) = spd*0.5D0*( (xQuad(k,i) - dymin/2d0-domainCenter(1))**2 + (yQuad(:,j) -domainCenter(2))**2 )
-              ENDDO !k
-            ENDDO !i
-          ENDDO !j
-        CASE(5:7,100) ! Leveque deformation flow
-				!(1/pi)*sin(pi*x(i))**2 * sin(pi*y(j))**2
-          DO j=1,ney
-            DO i=1,nex
-              DO k=0,norder
-              psiu(k,:,1,i,j) = (1D0/PI)*(DSIN(PI*xQuad(k,i))**2 * DSIN(PI*(yQuad(:,j)+dymin/2d0))**2)
-              psiu(k,:,0,i,j) = (1D0/PI)*(DSIN(PI*xQuad(k,i))**2 * DSIN(PI*(yQuad(:,j)-dymin/2d0))**2)
-
-              psiv(k,:,1,i,j) = (1D0/PI)*(DSIN(PI*(xQuad(k,i)+dxmin/2d0))**2 * DSIN(PI*yQuad(:,j))**2)
-              psiv(k,:,0,i,j) = (1D0/PI)*(DSIN(PI*(xQuad(k,i)-dxmin/2d0))**2 * DSIN(PI*yQuad(:,j))**2)
-              ENDDO !k
-            ENDDO !i
-          ENDDO !j
-        END SELECT !ntest
-
-        ! Compute velocity from stream functions
+      ! Fill streamfunction array
+      SELECT CASE(ntest)
+      CASE(1,8:10) ! uniform velocity u = v = 1
         DO j=1,ney
           DO i=1,nex
-            u0(:,:,i,j) = (psiu(:,:,1,i,j)-psiu(:,:,0,i,j) )/dymin
-            v0(:,:,i,j) = -(psiv(:,:,1,i,j)-psiv(:,:,0,i,j) )/dxmin
+            DO k=0,norder
+              psiu(k,:,1,i,j) = (yQuad(:,j) + dymin/2d0) - xQuad(k,i)
+              psiu(k,:,0,i,j) = (yQuad(:,j) - dymin/2d0) - xQuad(k,i)
+
+              psiv(k,:,1,i,j) = yQuad(:,j) - (xQuad(k,i) + dxmin/2d0)
+              psiv(k,:,0,i,j) = yQuad(:,j) - (xQuad(k,i) - dxmin/2d0)
+            ENDDO !k
           ENDDO !j
         ENDDO !i
+      CASE(2:4,11) ! Solid body rotation
+        ! pi*( (x-0.5)**2 + (y-0.5)**2 )
+        DO j=1,ney
+          DO i=1,nex
+            DO k=0,norder
+           psiu(k,:,1,i,j) = spd*0.5D0*( (xQuad(k,i)-domainCenter(1))**2 + (yQuad(:,j) + dymin/2d0 -domainCenter(2))**2 )
+           psiu(k,:,0,i,j) = spd*0.5D0*( (xQuad(k,i)-domainCenter(1))**2 + (yQuad(:,j) - dymin/2d0 -domainCenter(2))**2 )
 
-        ! Initialize coefficent array
-        SELECT CASE(ntest)
-        CASE(1) ! uniform advection of a sine wave
-          cdf_out = 'dg2d_sine_adv.nc'
-          tfinal = 10D0
+           psiv(k,:,1,i,j) = spd*0.5D0*( (xQuad(k,i) + dxmin/2d0-domainCenter(1))**2 + (yQuad(:,j) -domainCenter(2))**2 )
+           psiv(k,:,0,i,j) = spd*0.5D0*( (xQuad(k,i) - dymin/2d0-domainCenter(1))**2 + (yQuad(:,j) -domainCenter(2))**2 )
+            ENDDO !k
+          ENDDO !i
+        ENDDO !j
+      CASE(5:7,100) ! Leveque deformation flow
+			!(1/pi)*sin(pi*x(i))**2 * sin(pi*y(j))**2
+        DO j=1,ney
+          DO i=1,nex
+            DO k=0,norder
+            psiu(k,:,1,i,j) = (1D0/PI)*(DSIN(PI*xQuad(k,i))**2 * DSIN(PI*(yQuad(:,j)+dymin/2d0))**2)
+            psiu(k,:,0,i,j) = (1D0/PI)*(DSIN(PI*xQuad(k,i))**2 * DSIN(PI*(yQuad(:,j)-dymin/2d0))**2)
+
+            psiv(k,:,1,i,j) = (1D0/PI)*(DSIN(PI*(xQuad(k,i)+dxmin/2d0))**2 * DSIN(PI*yQuad(:,j))**2)
+            psiv(k,:,0,i,j) = (1D0/PI)*(DSIN(PI*(xQuad(k,i)-dxmin/2d0))**2 * DSIN(PI*yQuad(:,j))**2)
+            ENDDO !k
+          ENDDO !i
+        ENDDO !j
+      END SELECT !ntest
+
+      ! Compute velocity from stream functions
+      DO j=1,ney
+        DO i=1,nex
+          u0(:,:,i,j) = (psiu(:,:,1,i,j)-psiu(:,:,0,i,j) )/dymin
+          v0(:,:,i,j) = -(psiv(:,:,1,i,j)-psiv(:,:,0,i,j) )/dxmin
+        ENDDO !j
+      ENDDO !i
+
+      ! Initialize coefficent array
+      SELECT CASE(ntest)
+      CASE(1) ! uniform advection of a sine wave
+        cdf_out = 'dg2d_sine_adv.nc'
+        tfinal = 10D0
+        DO j=1,ney
+          DO i=1,nex
+            DO k=0,norder
+! A(i,j,k,:) = DSIN(2D0*PI*xQuad(i,k))*DSIN(2D0*PI*yQuad(j,:))
+              A(k,:,i,j) = 1D0+DSIN(2D0*PI*xQuad(k,i))*DSIN(2D0*PI*yQuad(:,j))
+            ENDDO !k
+          ENDDO!i
+        ENDDO!j
+
+        CASE(2) ! solid body rotation of a cylinder
+          cdf_out = 'dg2d_rot_cylinder.nc'
+!tfinal = 2D0*PI
+          tfinal = 1D0
+          A = 0D0
           DO j=1,ney
             DO i=1,nex
               DO k=0,norder
-! A(i,j,k,:) = DSIN(2D0*PI*xQuad(i,k))*DSIN(2D0*PI*yQuad(j,:))
-                A(k,:,i,j) = 1D0+DSIN(2D0*PI*xQuad(k,i))*DSIN(2D0*PI*yQuad(:,j))
+                r(k,:) = SQRT((xQuad(i,k)-0.3d0)**2 + (yQuad(:,j)-0.3d0)**2)
               ENDDO !k
+              WHERE(r .lt. 0.125D0)
+                A(:,:,i,j) = 1D0
+              END WHERE
             ENDDO!i
           ENDDO!j
 
-          CASE(2) ! solid body rotation of a cylinder
-            cdf_out = 'dg2d_rot_cylinder.nc'
-!tfinal = 2D0*PI
+          CASE(3,10:11) ! solid body rotation of a cylinder (comparison to frank's code)
+            cdf_out = 'dg2d_rot_cylinder_modified.nc'
             tfinal = 1D0
             A = 0D0
+            xc = xEdge(1)+xWidth/4D0
+            yc = yEdge(1)+yWidth/2D0
+
             DO j=1,ney
               DO i=1,nex
                 DO k=0,norder
-                  r(k,:) = SQRT((xQuad(i,k)-0.3d0)**2 + (yQuad(:,j)-0.3d0)**2)
+                  r(k,:) = SQRT((xQuad(k,i)-xc)**2 + (yQuad(j,:)-yc)**2)
                 ENDDO !k
-                WHERE(r .lt. 0.125D0)
+                WHERE(r .lt. 0.25D0)
                   A(:,:,i,j) = 1D0
                 END WHERE
               ENDDO!i
             ENDDO!j
 
-            CASE(3,10:11) ! solid body rotation of a cylinder (comparison to frank's code)
-              cdf_out = 'dg2d_rot_cylinder_modified.nc'
-              tfinal = 1D0
-              A = 0D0
-              xc = xEdge(1)+xWidth/4D0
-              yc = yEdge(1)+yWidth/2D0
-
-              DO j=1,ney
-                DO i=1,nex
-                  DO k=0,norder
-                    r(k,:) = SQRT((xQuad(k,i)-xc)**2 + (yQuad(j,:)-yc)**2)
-                  ENDDO !k
-                  WHERE(r .lt. 0.25D0)
-                    A(:,:,i,j) = 1D0
-                  END WHERE
-                ENDDO!i
-              ENDDO!j
-
-            CASE(5,9) ! standard cosbell deformation
-      				cdf_out = 'dg2d_def_cosbell.nc'
-      				tfinal = 40D0
-              A = 0D0
-              DO j=1,ney
-                DO i=1,nex
-                  DO k=0,norder ! Fill distance array for (i,j) element
-                    r(k,:) = 4D0*SQRT( (xQuad(k,i)-0.25D0)**2 + (yQuad(:,j)-0.25D0)**2 )
-                  ENDDO !k
-                  WHERE(r .lt. 1D0)
+          CASE(5,9) ! standard cosbell deformation
+    				cdf_out = 'dg2d_def_cosbell.nc'
+    				tfinal = 40D0
+            A = 0D0
+            DO j=1,ney
+              DO i=1,nex
+                DO k=0,norder ! Fill distance array for (i,j) element
+                  r(k,:) = 4D0*SQRT( (xQuad(k,i)-0.25D0)**2 + (yQuad(:,j)-0.25D0)**2 )
+                ENDDO !k
+                WHERE(r .lt. 1D0)
 !                            A(i,j,:,:) = (0.5d0*(1.d0 + DCOS(PI*r(:,:))))
-                    A(:,:,i,j) = (0.25d0*(1.d0 + DCOS(PI*r(:,:)))**2)
-                  END WHERE
-                ENDDO !i
-              ENDDO !j
-
-            CASE(6) ! smoother cosbell deformation
-              cdf_out = 'dg2d_smth_cosbell.nc'
-              tfinal = 5D0
-              A = 0D0
-              DO j=1,ney
-                DO i=1,nex
-                  DO k=0,norder ! Fill distance array for (i,j) element
-                    r(k,:) = 3D0*SQRT( (xQuad(k,i)-0.4D0)**2 + (yQuad(:,j)-0.4D0)**2 )
-                  ENDDO !k
-                  WHERE(r .lt. 1D0)
-                    A(:,:,i,j) = (0.5d0*(1.d0 + DCOS(PI*r(:,:))))**3
-                  END WHERE
-                ENDDO !i
-              ENDDO !j
-            CASE(7) ! slotted cylinder ICs
-              cdf_out = 'dg2d_def_cyl.nc'
-              tfinal = 5D0
-              A = 0D0
-              xc = 0.25D0
-              yc = 0.5D0
-              DO j=1,ney
-                DO i=1,nex
-                  DO k=0,nOrder
-                    r(k,:) = SQRT((xQuad(k,i)-xc)**2 + (yQuad(j,:)-yc)**2)
-                  ENDDO !k
-                  WHERE(r .lt. 0.15D0)
-                    A(:,:,i,j) = 1D0
-                  END WHERE
-
-                  DO k=0,nOrder
-                    DO l=0,nOrder
-                      IF(ABS(xQuad(k,i)-xc) .lt. 0.025D0 .AND. yQuad(l,j) .gt.(yc-0.0625D0)) THEN
-                        A(k,l,i,j) = 0D0
-                      ENDIF
-                    ENDDO !l
-                  ENDDO !k
-                ENDDO !i
-              ENDDO !j
-            CASE(8) ! gaussian bump
-              cdf_out = 'dg2d_gauss_bump.nc'
-              tfinal = 1D0
-              DO j=1,ney
-                DO i=1,nex
-                  DO k=0,norder
-                    A(k,:,i,j) = EXP(- 2*(xQuad(k,i)**2 + yQuad(:,j)**2 )/(8D0**2) )
-                  ENDDO !k
-                ENDDO !j
+                  A(:,:,i,j) = (0.25d0*(1.d0 + DCOS(PI*r(:,:)))**2)
+                END WHERE
               ENDDO !i
-        END SELECT !ntest
+            ENDDO !j
 
-        if(ntest .eq. 10) then
-            tfinal = xWidth*10D0*tfinal*5
-        elseif(ntest .eq. 11) then
-            tfinal = 3D0*2D0*PI
-        elseif(ntest .eq. 6) then
-            tfinal = 1D0*tfinal
-        endif
+          CASE(6) ! smoother cosbell deformation
+            cdf_out = 'dg2d_smth_cosbell.nc'
+            tfinal = 5D0
+            A = 0D0
+            DO j=1,ney
+              DO i=1,nex
+                DO k=0,norder ! Fill distance array for (i,j) element
+                  r(k,:) = 3D0*SQRT( (xQuad(k,i)-0.4D0)**2 + (yQuad(:,j)-0.4D0)**2 )
+                ENDDO !k
+                WHERE(r .lt. 1D0)
+                  A(:,:,i,j) = (0.5d0*(1.d0 + DCOS(PI*r(:,:))))**3
+                END WHERE
+              ENDDO !i
+            ENDDO !j
+          CASE(7) ! slotted cylinder ICs
+            cdf_out = 'dg2d_def_cyl.nc'
+            tfinal = 5D0
+            A = 0D0
+            xc = 0.25D0
+            yc = 0.5D0
+            DO j=1,ney
+              DO i=1,nex
+                DO k=0,nOrder
+                  r(k,:) = SQRT((xQuad(k,i)-xc)**2 + (yQuad(j,:)-yc)**2)
+                ENDDO !k
+                WHERE(r .lt. 0.15D0)
+                  A(:,:,i,j) = 1D0
+                END WHERE
 
-    END SUBROUTINE init2d
+                DO k=0,nOrder
+                  DO l=0,nOrder
+                    IF(ABS(xQuad(k,i)-xc) .lt. 0.025D0 .AND. yQuad(l,j) .gt.(yc-0.0625D0)) THEN
+                      A(k,l,i,j) = 0D0
+                    ENDIF
+                  ENDDO !l
+                ENDDO !k
+              ENDDO !i
+            ENDDO !j
+          CASE(8) ! gaussian bump
+            cdf_out = 'dg2d_gauss_bump.nc'
+            tfinal = 1D0
+            DO j=1,ney
+              DO i=1,nex
+                DO k=0,norder
+                  A(k,:,i,j) = EXP(- 2*(xQuad(k,i)**2 + yQuad(:,j)**2 )/(8D0**2) )
+                ENDDO !k
+              ENDDO !j
+            ENDDO !i
+      END SELECT !ntest
+
+      if(ntest .eq. 10) then
+          tfinal = xWidth*10D0*tfinal*5
+      elseif(ntest .eq. 11) then
+          tfinal = 3D0*2D0*PI
+      elseif(ntest .eq. 6) then
+          tfinal = 1D0*tfinal
+      endif
+
+  END SUBROUTINE init2d
 
 	SUBROUTINE output2d(A,x,y,gllWeights,gllNodes,nex,ney,norder,nQuadNodes,nxiplot,netaplot,tval_in,mu,cdf_out,ilvl,stat)
 		IMPLICIT NONE

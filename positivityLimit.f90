@@ -14,11 +14,9 @@ SUBROUTINE limitMeanPositivity(coeffs,elemAvgs,lagGaussVal,gqWeights,gllWeights,
     DOUBLE PRECISION, DIMENSION(0:nOrder,0:nOrder,1:nex,1:ney), INTENT(INOUT) :: coeffs
 
     ! Local variables
-    INTEGER :: i,j,l,beta,index,p,q
-    LOGICAL :: isEdge
+    INTEGER :: i,j,l,beta,p,q
     DOUBLE PRECISION :: avg,valMin,leftTrace,rightTrace,topTrace,botTrace,magicPt
     DOUBLE PRECISION :: eps,theta,traceMin,massChg,weight,dCoeff
-    DOUBLE PRECISION, DIMENSION(0:nOrder,0:nOrder) :: tmpArray
     DOUBLE PRECISION, DIMENSION(0:gqOrder) :: magicTmp
 
     ! External function interface
@@ -33,6 +31,63 @@ SUBROUTINE limitMeanPositivity(coeffs,elemAvgs,lagGaussVal,gqWeights,gllWeights,
 
     eps = epsilon(1D0)
     SELECT CASE(limitingMeth)
+    CASE(2)
+      DO j = 1,ney
+        DO i = 1,nex
+          ! Step 1: Pull element average
+          avg = elemAvgs(i,j)
+
+          ! Step 2: Truncate along edges and evaluate magic point
+          massChg = 0D0
+          magicPt = 0D0
+
+          ! Top and bottom edges
+          DO q=0,nOrder,nOrder
+            DO p=0,nOrder
+              weight = 0.25*gllWeights(p)*gllWeights(0)
+              dCoeff = 0.5*(ABS(coeffs(p,q,i,j))-coeffs(p,q,i,j))
+              massChg = massChg + weight*dCoeff
+              coeffs(p,q,i,j) = coeffs(p,q,i,j)+dCoeff
+
+!                massChg = massChg - weight*MIN(coeffs(p,q,i,j),0D0)
+!                coeffs(p,q,i,j) = MAX(coeffs(p,q,i,j),0D0)
+
+              ! Track contribution to magic point
+              magicPt = magicPt + weight*coeffs(p,q,i,j)
+            ENDDO !p
+          ENDDO !q
+
+          ! Left and right edges
+          DO q = 1,nOrder-1
+            DO p = 0,nOrder,nOrder
+              weight = 0.25*gllWeights(p)*gllWeights(q)
+              dCoeff = 0.5*(ABS(coeffs(p,q,i,j))-coeffs(p,q,i,j))
+              massChg = massChg + weight*dCoeff
+              coeffs(p,q,i,j) = coeffs(p,q,i,j)+dCoeff
+
+!                massChg = massChg - weight*MIN(coeffs(p,q,i,j),0D0)
+!                coeffs(p,q,i,j) = MAX(coeffs(p,q,i,j),0D0)
+
+              ! Track contribution to magic point
+              magicPt = magicPt + weight*coeffs(p,q,i,j)
+            ENDDO !p
+          ENDDO !q
+
+          ! Check magic point for positivity
+          magicPt = avg - magicPt
+          IF(magicPt .lt. 0D0) THEN
+            ! Update mass change due to truncating magic pt
+            massChg = massChg - magicPt
+
+            ! Truncate interior nodes
+            coeffs(1:nOrder-1,1:nOrder-1,i,j) = 0D0
+          ENDIF
+
+          ! Rescale remaining coefficents to maintain conservation
+          theta = avg/MAX(avg+massChg,TINY(1D0))
+          coeffs(:,:,i,j) = theta*coeffs(:,:,i,j)
+        ENDDO !j
+      ENDDO !i
     CASE(1,3)
         DO j=1,ney
           DO i=1,nex
@@ -78,66 +133,6 @@ SUBROUTINE limitMeanPositivity(coeffs,elemAvgs,lagGaussVal,gqWeights,gllWeights,
             coeffs(:,:,i,j) = theta*(coeffs(:,:,i,j) - avg) + avg
           ENDDO !i
         ENDDO !j
-
-      CASE(2)
-        DO j = 1,ney
-          DO i = 1,nex
-            ! Step 1: Pull element average
-            avg = elemAvgs(i,j)
-
-            ! Step 2: Truncate along edges and evaluate magic point
-            massChg = 0D0
-            magicPt = 0D0
-
-            ! Top and bottom edges
-            DO q=0,nOrder,nOrder
-              DO p=0,nOrder
-                weight = 0.25*gllWeights(p)*gllWeights(0)
-
-                dCoeff = 0.5*(ABS(coeffs(p,q,i,j))-coeffs(p,q,i,j))
-                massChg = massChg + weight*dCoeff
-                coeffs(p,q,i,j) = coeffs(p,q,i,j)+dCoeff
-
-!                massChg = massChg - weight*MIN(coeffs(p,q,i,j),0D0)
-!                coeffs(p,q,i,j) = MAX(coeffs(p,q,i,j),0D0)
-
-                ! Track contribution to magic point
-                magicPt = magicPt + weight*coeffs(p,q,i,j)
-              ENDDO !p
-            ENDDO !q
-
-            ! Left and right edges
-            DO q = 1,nOrder-1
-              DO p = 0,nOrder,nOrder
-                weight = 0.25*gllWeights(p)*gllWeights(q)
-
-                dCoeff = 0.5*(ABS(coeffs(p,q,i,j))-coeffs(p,q,i,j))
-                massChg = massChg + weight*dCoeff
-                coeffs(p,q,i,j) = coeffs(p,q,i,j)+dCoeff
-
-!                massChg = massChg - weight*MIN(coeffs(p,q,i,j),0D0)
-!                coeffs(p,q,i,j) = MAX(coeffs(p,q,i,j),0D0)
-
-                ! Track contribution to magic point
-                magicPt = magicPt + weight*coeffs(p,q,i,j)
-              ENDDO !p
-            ENDDO !q
-
-            ! Check magic point for positivity
-            magicPt = avg - magicPt
-            IF(magicPt .lt. 0D0) THEN
-              ! Update mass change due to truncating magic pt
-              massChg = massChg - magicPt
-
-              ! Truncate interior nodes
-              coeffs(1:nOrder-1,1:nOrder-1,i,j) = 0D0
-            ENDIF
-
-            ! Rescale remaining coefficents to maintain conservation
-            theta = avg/MAX(avg+massChg,TINY(1D0))
-            coeffs(:,:,i,j) = theta*coeffs(:,:,i,j)
-          ENDDO !j
-        ENDDO !i
     END SELECT
 
 END SUBROUTINE limitMeanPositivity
@@ -155,12 +150,35 @@ SUBROUTINE limitNodePositivity(coeffs,elemAvgs,gllWeights,nex,ney,nOrder)
   ! Local variables
   INTEGER :: i,j,p,q
   DOUBLE PRECISION :: valMin,eps,theta,avg
-  DOUBLE PRECISION :: Mt,mP
-  DOUBLE PRECISION, DIMENSION(0:nOrder,0:nOrder) :: tmpArray
+  DOUBLE PRECISION :: dCoeff,massChg,weight
 
   eps = epsilon(1d0)
 
   SELECT CASE(limitingMeth)
+  CASE(2,3)
+    ! ================================================================================
+    ! Use TMAR limiting at GLL nodes
+    ! ================================================================================
+    DO j=1,ney
+      DO i=1,nex
+        avg = elemAvgs(i,j)
+        massChg = 0D0
+        DO q=0,nOrder
+          DO p=0,nOrder
+            weight = 0.25*gllWeights(p)*gllWeights(q)
+            dCoeff = 0.5*(ABS(coeffs(p,q,i,j))-coeffs(p,q,i,j))
+            massChg = massChg + weight*dCoeff
+            coeffs(p,q,i,j) = coeffs(p,q,i,j)+dCoeff
+
+!            coeffs(p,q,i,j) = MAX(coeffs(p,q,i,j),0D0) ! Truncate negative nodes
+!            Mp = Mp+weight*coeffs(p,q,i,j)
+          ENDDO !q
+        ENDDO !p
+!        theta = avg/MAX(Mp,TINY(1D0)) ! Linear reduction factor
+        theta = avg/MAX(avg+massChg,TINY(1D0))
+        coeffs(:,:,i,j) = theta*coeffs(:,:,i,j) ! Reduce remaining (positive) nodes by reduction factor
+      ENDDO!i
+    ENDDO !j
     CASE(1)
       ! ================================================================================
       ! Use ZS (2010)-style linear rescaling
@@ -177,25 +195,6 @@ SUBROUTINE limitNodePositivity(coeffs,elemAvgs,gllWeights,nex,ney,nOrder)
           ! Rescale approximating polynomial
           coeffs(:,:,i,j) = theta*(coeffs(:,:,i,j) - avg) + avg
         ENDDO !i
-      ENDDO !j
-    CASE(2,3)
-      ! ================================================================================
-      ! Use TMAR limiting at GLL nodes
-      ! ================================================================================
-      DO j=1,ney
-        DO i=1,nex
-          Mt = 0D0
-          Mp = 0D0
-          DO p=0,nOrder
-            DO q=0,nOrder
-              Mt = Mt+gllWeights(p)*gllWeights(q)*coeffs(p,q,i,j)
-              coeffs(p,q,i,j) = MAX(coeffs(p,q,i,j),0D0) ! Truncate negative nodes
-              Mp = Mp+gllWeights(p)*gllWeights(q)*coeffs(p,q,i,j)
-            ENDDO !q
-          ENDDO !p
-          theta = MAX(Mt,0D0)/MAX(Mp,TINY(1D0)) ! Linear reduction factor
-          coeffs(:,:,i,j) = theta*coeffs(:,:,i,j) ! Reduce remaining (positive) nodes by reduction factor
-        ENDDO!i
       ENDDO !j
     CASE DEFAULT
       write(*,*) '***** ERROR *****'

@@ -32,7 +32,7 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gqWeights,lagrangeDeriv,time
   REAL(KIND=8), DIMENSION(0:norder,0:norder,1:nex,1:ney), INTENT(INOUT) :: A
 
   ! Local Variables
-  INTEGER :: i,j,l,m,stage,k,whichElement
+  INTEGER :: i,j,l,m,stage
   REAL(KIND=8) :: coef1,sentFhat,sentGhat
   REAL(KIND=8), DIMENSION(0:norder,0:norder,1:nex,1:ney) :: A1,A2
   REAL(KIND=8), DIMENSION(0:nQuadNodes,0:nQuadNodes,1:nex,1:ney) :: quadVals,u,v
@@ -41,10 +41,7 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gqWeights,lagrangeDeriv,time
   REAL(KIND=8), DIMENSION(0:1,0:nQuadNodes,1:nex,0:ney+1) :: edgeValsNS
   REAL(KIND=8), DIMENSION(0:nQuadNodes,0:nex,1:ney) :: Fhat
   REAL(KIND=8), DIMENSION(0:nQuadNodes,1:nex,0:ney) :: Ghat
-  REAL(KIND=8) :: error
   DOUBLE PRECISION, DIMENSION(1:nex,1:ney) :: elemAvg
-
-	REAL(KIND=8), DIMENSION(0:norder,0:norder) :: tmpArray
 
 	REAL(KIND=4) :: t0,tf,t1
 
@@ -117,22 +114,18 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gqWeights,lagrangeDeriv,time
      END SELECT
     ENDIF
 
-    IF(dozshulimit) THEN
+    IF(dozshulimit .and. stage > 1) THEN
       ! Check element averages
       CALL computeAverages(elemAvg,gllWeights,A1,nex,ney,nOrder,nQuadNodes)
       IF(MINVAL(elemAvg) .lt. 0d0) THEN
         write(*,*) 'WARNING-- ELEMENT MEAN IS NEGATIVE BEFORE FWD STEP',stage
         write(*,*) minval(elemAvg)
       ENDIF
-      IF(stage>1) THEN
-!        CALL CPU_TIME(t0)
-!        CALL limitMeanPositivity(A1,elemAvg,lagGaussVal,gqWeights,gllWeights,&
-!                                nex,ney,nOrder,gqOrder)
-        CALL limitNodePositivity(A1,elemAvg,gllWeights,nex,ney,nOrder)
-!        CALL CPU_TIME(tf)
-!        tf = tf - t0
-!        write(*,*) 'tend=',tf
-      ENDIF
+
+        CALL limitMeanPositivity(A1,elemAvg,lagGaussVal,gqWeights,gllWeights,&
+                                nex,ney,nOrder,gqOrder)
+!        CALL limitNodePositivity(A1,elemAvg,gllWeights,nex,ney,nOrder)
+
     ENDIF !dozshulimit
 
     ! Update fluxes
@@ -169,11 +162,11 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gqWeights,lagrangeDeriv,time
     IF(dozshulimit) THEN
       ! Compute element average via quadrature at next time level
       CALL computeAverages(elemAvg,gllWeights,A,nex,ney,nOrder,nQuadNodes)
-!      IF(minval(elemAvg) .lt. 0d0) THEN
-!        write(*,*) 'WARNING-- ELEMENT MEAN IS NEGATIVE BEFORE LIMITING NODES'
-!        write(*,*) minval(elemAvg)
+      IF(minval(elemAvg) .lt. 0d0) THEN
+        write(*,*) 'WARNING-- ELEMENT MEAN IS NEGATIVE BEFORE LIMITING NODES'
+        write(*,*) minval(elemAvg)
         !STOP
-!      ENDIF
+      ENDIF
       CALL limitNodePositivity(A,elemAvg,gllWeights,nex,ney,nOrder)
     ENDIF !dozshulimit
 
