@@ -27,7 +27,8 @@ SOURCES= nDGmod.f90 \
 
 MODULES= testParameters.f90 \
          splitFunctions.f90 \
-				 splitEvalFlux.f90
+				 splitEvalFlux.f90 \
+				 splitPositivityLimit.f90
 OBJECTS=$(SOURCES:.f90=.o)
 MODOBJ=$(MODULES:.f90=.o)
 

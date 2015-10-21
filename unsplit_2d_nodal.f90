@@ -23,8 +23,8 @@ PROGRAM EXECUTE
     doTimeTest = .FALSE.
     doZSMaxCFL = .TRUE.
 
-    polyOrder = 5
-	  startRes = 10
+    polyOrder = 4
+	  startRes = 12
 
     IF(doZSMaxCFL) THEN
       SELECT CASE(polyOrder)
@@ -75,6 +75,7 @@ PROGRAM EXECUTE
     write(*,*) '======================================================'
     write(*,*) '             BEGINNING RUN OF NODAL TESTS             '
     write(*,'(A27,F7.4)') 'muMAX=',muMAX
+    WRITE(*,'(A,I1,A,I3,A)') ' N= ',polyOrder,' Uses a total of',(polyOrder+1)**2,' Lagrange basis polynomials per element'
     write(*,*) '======================================================'
 
     DO nTest=1,testEnd
@@ -153,13 +154,15 @@ CONTAINS
 
 		if(nlevel.lt.1) STOP 'nlev should be at least 1 in test2d_modal'
 
-		nmethod_final = 1
+		nmethod_final = 4
 		tmp_method = 0
-		tmp_method(1) = 2
-    tmp_method(2) = 2
-    tmp_method(3) = 6
-    !tmp_method(4) = 4
-    !tmp_method(5) = 5
+    tmp_method(1) = 3
+		tmp_method(2) = 4
+    tmp_method(3) = 5
+    tmp_method(4) = 8
+    tmp_method(5) = 8
+
+    tmp_method(1) = 5
 
 		DO nmethod=1,nmethod_final
 			imethod = tmp_method(nmethod)
@@ -168,6 +171,9 @@ CONTAINS
       doStrangSplit = .FALSE.
       doFluxMod = .FALSE.
       doPosLim = .FALSE.
+      limitingMeth = -1
+
+      write(*,*) ''
 
 			SELECT CASE(imethod)
 				CASE(1)
@@ -195,26 +201,28 @@ CONTAINS
         CASE(3)
           write(*,*) '2D Nodal, Strang Split, No limiting'
           doStrangSplit = .TRUE.
-          outdir = '_ndgsplun/'
+          WRITE(outdir,'(A,I1,A)') '_ndgsplun/n',norder,'/'
           norder = polyOrder
           nQuadNodes = norder
           gqOrder = 1
           nZSnodes = 1
+          !outdir = '_ndgsplun/'
         CASE(4)
           write(*,*) '2D Nodal, Strang Split, Zhang and Shu Limiting'
           dozshulimit = .TRUE.
           doStrangSplit = .TRUE.
           doPosLim = .TRUE.
           limitingMeth = 1
-          outdir = '_ndgsplzs/n5/pRefine/rescale/'
+          WRITE(outdir,'(A,I1,A)') '_ndgsplzs/n',norder,'/'
           nOrder = polyOrder
           nQuadNodes = nOrder
           gqOrder = 1
-!         nZSNodes = CEILING((polyOrder+3)/2D0 )-1
-          nZSNodes = nQuadNodes
+          nZSNodes = CEILING((polyOrder+3)/2D0 )-1
+!          nZSNodes = nQuadNodes
+!outdir = '_ndgsplzs/n5/pRefine/rescale/'
           WRITE(*,'(A,I1,A)') '   NOTE: Using ',nZSNodes+1,' GLL nodes for positivity limiting.'
         CASE(5)
-          WRITE(*,*) '2D Nodal, Strang Split, FCT + Positivity limiting'
+          WRITE(*,*) '2D Nodal, Strang Split, FCT + TMAR'
           doFluxMod = .TRUE.
           doStrangSplit = .TRUE.
           doPosLim = .TRUE.
@@ -223,7 +231,8 @@ CONTAINS
           nQuadNodes = nOrder
           gqOrder = 1
           nZSNodes = nQuadNodes
-          outdir = '_ndgsplfc/'
+          !outdir = '_ndgsplfc/'
+          write(outdir,'(A,I1,A)') '_ndgsplfc/n',norder,'/'
           WRITE(*,'(A,I1,A)') '   NOTE: Using ',nZSNodes+1,' GLL nodes for positivity limiting.'
         CASE(6)
           WRITE(*,*) '2D Nodal, Unsplit, MA Truncation'
@@ -262,10 +271,15 @@ CONTAINS
           nQuadNodes = nOrder
           gqOrder = 1
           nZSNodes = nQuadNodes
-          outdir = '_ndgspllm'
+          !outdir = '_ndgspllm/'
+          write(outdir,'(A,I1,A)') '_ndgspllm/n',norder,'/'
           WRITE(*,'(A,I1,A)') '   NOTE: Using ',nZSNodes+1,' GLL nodes for positivity limiting.'
 			END SELECT
-      WRITE(*,*) '  N=',norder,'Uses a total of',(norder+1)**2,'Lagrange basis polynomials per element'
+      IF(limitingMeth == -1) THEN
+        WRITE(*,*) '***No Limiting Active ***'
+      ELSE
+        WRITE(*,*) 'limitingMeth = ',limitingMeth
+      ENDIF
       WRITE(*,*) 'Output directory is: ',outdir
 
 			! Initialize quadrature weights and nodes (only done once per call)
@@ -618,7 +632,7 @@ CONTAINS
         whichEl = i/(nOrder+1) + 1
         whichLvl = MOD(i,nOrder+1)
         A1dx(:,1:nex) = A(:,whichLvl,1:nex,whichEl)
-        u1dx(:,1,nex) = u0(:,whichLvl,1:nex,whichEl)
+        u1dx(:,1:nex) = u0(:,whichLvl,1:nex,whichEl)
 
         CALL nDGsweep(A1dx,nex,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u1dx,lagrangeDeriv,time,dt,transient,&
                       dozshulimit,nZSnodes,quadZSWeights,lagValsZS)
@@ -659,13 +673,13 @@ CONTAINS
       DO i=0,totalLvls-1
         whichEl = i/(nOrder+1) + 1
         whichLvl = MOD(i,nOrder+1)
-        A1dx(:,1:nex) = A(1:nex,whichEl,:,whichLvl)
-        u1dx(:,1:nex) = u0(1:nex,whichEl,:,whichLvl)
+        A1dx(:,1:nex) = A(:,whichLvl,1:nex,whichEl)
+        u1dx(:,1:nex) = u0(:,whichLvl,1:nex,whichEl)
 
         CALL nDGsweep(A1dx,nex,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u1dx,lagrangeDeriv,time,dt,transient,&
                       dozshulimit,nZSnodes,quadZSWeights,lagValsZS)
         ! Update solution
-        A(1:nex,whichEl,:,whichLvl) = A1dx(:,1:nex)
+        A(:,whichLvl,1:nex,whichEl) = A1dx(:,1:nex)
       ENDDO !i
     ENDIF !oddstep
   END SUBROUTINE strangSplitUpdate
@@ -820,7 +834,7 @@ CONTAINS
 
           CASE(5,9) ! standard cosbell deformation
     				cdf_out = 'dg2d_def_cosbell.nc'
-    				tfinal = 40D0
+    				tfinal = 5D0
             A = 0D0
             DO j=1,ney
               DO i=1,nex

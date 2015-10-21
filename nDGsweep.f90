@@ -8,29 +8,29 @@ SUBROUTINE nDGsweep(A,nelem,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u0,lagDer
     USE testParameters
     USE splitFunctions
     USE splitEvalFlux
+    USE splitPositivityLimit
     IMPLICIT NONE
-    INTEGER, PARAMETER :: DOUBLE = KIND(1D0) ! Specification of DOUBLE
 
     ! Inputs
     INTEGER, INTENT(IN) :: nelem,nQuadNodes,nOrder,nZSNodes
-    REAL(KIND=DOUBLE), INTENT(IN) :: dxel,dt,time
-    REAL(KIND=DOUBLE), DIMENSION(0:nQuadNodes), INTENT(IN):: gllNodes,gllWeights
-    REAL(KIND=DOUBLE), DIMENSION(0:nOrder,0:nQuadNodes), INTENT(IN) :: lagDeriv
-    REAL(KIND=DOUBLE), DIMENSION(0:nZSNodes), INTENT(IN) :: quadZSWeights
-    REAL(KIND=DOUBLE), DIMENSION(0:nOrder,0:nZSNodes), INTENT(IN) :: lagValsZS
-    REAL(KIND=DOUBLE), DIMENSION(0:nQuadNodes,1:nelem), INTENT(IN) :: u0
+    DOUBLE PRECISION, INTENT(IN) :: dxel,dt,time
+    DOUBLE PRECISION, DIMENSION(0:nQuadNodes), INTENT(IN):: gllNodes,gllWeights
+    DOUBLE PRECISION, DIMENSION(0:nOrder,0:nQuadNodes), INTENT(IN) :: lagDeriv
+    DOUBLE PRECISION, DIMENSION(0:nZSNodes), INTENT(IN) :: quadZSWeights
+    DOUBLE PRECISION, DIMENSION(0:nOrder,0:nZSNodes), INTENT(IN) :: lagValsZS
+    DOUBLE PRECISION, DIMENSION(0:nQuadNodes,1:nelem), INTENT(IN) :: u0
     LOGICAL, INTENT(IN) :: transient,dozshulimit
 
     ! Outputs
-    REAL(KIND=DOUBLE), DIMENSION(0:nOrder,1:nelem), INTENT(INOUT) :: A
+    DOUBLE PRECISION, DIMENSION(0:nOrder,1:nelem), INTENT(INOUT) :: A
 
     ! Local Variables
-    REAL(KIND=DOUBLE), DIMENSION(0:nOrder,1:nelem) :: AFwd,AStar
-    REAL(KIND=DOUBLE), DIMENSION(0:nQuadNodes,1:nelem):: u,quadVals
-    REAL(KIND=DOUBLE), DIMENSION(0:nQuadNodes,0:nelem) :: utmp
-    REAL(KIND=DOUBLE), DIMENSION(0:1,0:nelem+1) :: edgeVals
-    REAL(KIND=DOUBLE), DIMENSION(0:nelem) :: flx
-    REAL(KIND=DOUBLE), DIMENSION(0:nQuadNodes) :: currLagDeriv,currElemQuad,currElemVel
+    DOUBLE PRECISION, DIMENSION(0:nOrder,1:nelem) :: AFwd,AStar
+    DOUBLE PRECISION, DIMENSION(0:nQuadNodes,1:nelem):: u,quadVals
+    DOUBLE PRECISION, DIMENSION(0:nQuadNodes,0:nelem) :: utmp
+    DOUBLE PRECISION, DIMENSION(0:1,0:nelem+1) :: edgeVals
+    DOUBLE PRECISION, DIMENSION(0:nelem) :: flx
+    DOUBLE PRECISION, DIMENSION(0:nQuadNodes) :: currLagDeriv,currElemQuad,currElemVel
     LOGICAL :: stopFlag = .FALSE.
 
     DOUBLE PRECISION, DIMENSION(1:nelem) :: elemAvg
@@ -39,15 +39,14 @@ SUBROUTINE nDGsweep(A,nelem,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u0,lagDer
 
     u = u0
 
-    IF(dozshulimit) THEN
-      IF(nZSnodes .eq. nQuadNodes) THEN
-        CALL split_polyMod(A,gllWeights,nelem,nOrder,nQuadNodes,lagValsZS,0)
-      ELSE
-        CALL split_polyMod(A,quadZSWeights,nelem,nOrder,nZSNodes,lagValsZS,1)
+    AStar = A
+    IF(doPosLim) THEN
+      CALL computeAverages(elemAvg,AStar,gllWeights,nelem,nOrder,nQuadNodes)
+      IF(MINVAL(elemAvg) .lt. 0D0) THEN
+        write(*,*) '*** WARNING::: Incoming element means are negative before first stage!'
+        stopFlag = .TRUE.
       ENDIF
     ENDIF
-    AStar = A
-    CALL computeAverages(elemAvg,AStar,gllWeights,nelem,nOrder,nQuadNodes)
 
     ! Do SSPRK3 Update
     DO stage=1,3
@@ -65,14 +64,11 @@ SUBROUTINE nDGsweep(A,nelem,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u0,lagDer
       utmp(:,1:nelem) = u
       utmp(:,0) = u(:,nelem)
 
-      CALL evalFluxes(flx,quadVals,elemAvg,AStar,utmp,gllWeights,nelem,nOrder,nQuadNodes,dt,dxel)
+      IF(doPosLim .and. limitingMeth == 1) THEN
+        CALL limitMeanPositivity(AStar,elemAvg,quadZSWeights,nelem,nOrder,nZSNodes)
+      ENDIF
 
-!      CALL split_evalExpansion(quadVals,edgeVals,AStar,nelem,nQuadNodes,nOrder)
-!      CALL split_numFlux(flx,edgeVals,utmp,nelem,nQuadNodes)
-!      IF(dofctlimit) THEN ! Use FCT adjustment for element avg nonnegativity
-!        CALL FLUXCOR(Astar,Astar,flx,gllWeights,dxel,dt,nelem,nOrder,1)
-!        CALL FLUXCOR(Astar,Astar,flx,gllWeights,dxel,dt,nelem,nOrder,stage)
-!      ENDIF !dofctlimit
+      CALL evalFluxes(flx,quadVals,elemAvg,AStar,utmp,gllWeights,nelem,nOrder,nQuadNodes,dt,dxel)
 
       ! Forward Step
       DO j=1,nelem
@@ -83,7 +79,7 @@ SUBROUTINE nDGsweep(A,nelem,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u0,lagDer
           AFwd(k,j) = AStar(k,j) + (dt/dxel)*dadt(currElemQuad,flx,currElemVel,gllWeights,&
                                                         currLagDeriv,k,j,nelem,nQuadNodes)
         ENDDO !k
-      ENDDO ! j
+      ENDDO !j
 
   		SELECT CASE(stage)
   		CASE(1)
@@ -94,7 +90,7 @@ SUBROUTINE nDGsweep(A,nelem,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u0,lagDer
   			AStar = A/3d0 + 2D0*AFwd/3D0
   		END SELECT
 
-      IF(doPosLim) THEN
+      IF(doPosLim .and. stage .lt. 3) THEN
         CALL computeAverages(elemAvg,AStar,gllWeights,nelem,nOrder,nQuadNodes)
         DO j=1,nelem
           IF(elemAvg(j).lt.0D0) THEN
@@ -103,17 +99,15 @@ SUBROUTINE nDGsweep(A,nelem,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u0,lagDer
             stopFlag = .TRUE.
           ENDIF
         ENDDO!j
+!        IF(limitingMeth == 1) THEN
+!          CALL limitMeanPositivity(AStar,elemAvg,quadZSWeights,nelem,nOrder,nZSNodes)
+!        ELSE IF(limitingMeth == 3) THEN
+!          CALL limitNodePositivity(AStar,elemAvg,gllWeights,nelem,nOrder,nQuadNodes)
+!        END IF
         IF(limitingMeth == 3) THEN
-          CALL split_polyMod(Astar,gllWeights,nelem,nOrder,nQuadNodes,lagValsZS,2)
+          CALL limitNodePositivity(AStar,elemAvg,gllWeights,nelem,nOrder,nQuadNodes)
         ENDIF
-      ENDIF
-      IF(dozshulimit) THEN
-        IF(nZSnodes .eq. nQuadNodes) THEN
-          CALL split_polyMod(Astar,gllWeights,nelem,nOrder,nQuadNodes,lagValsZS,0)
-!         CALL split_polyMod(Astar,gllWeights,nelem,nOrder,nQuadNodes,lagValsZS,2)
-        ELSE
-          CALL split_polyMod(Astar,quadZSWeights,nelem,nOrder,nZSNodes,lagValsZS,1)
-        ENDIF
+
       ENDIF
 
 !        IF(dozshulimit) THEN
@@ -136,10 +130,10 @@ SUBROUTINE nDGsweep(A,nelem,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u0,lagDer
       ENDIF
 
     ENDDO !stage
-    IF(doFluxMod) THEN
-      ! For fct positivity limiting, only adjust polynomial at the very END of a timestep
-      !CALL split_polyMod(Astar,gllWeights,nelem,nOrder,nQuadNodes,lagValsZS,0)
-      CALL split_polyMod(Astar,gllWeights,nelem,nOrder,nQuadNodes,lagValsZS,2)
+    IF(doPosLim) THEN
+      ! Adjust polynomial at end of time step for positive definiteness
+      CALL computeAverages(elemAvg,AStar,gllWeights,nelem,nOrder,nQuadNodes)
+      CALL limitNodePositivity(AStar,elemAvg,gllWeights,nelem,nOrder,nQuadNodes)
     ENDIF !dofctlimit
     A = AStar
 

@@ -32,7 +32,7 @@ function out = plot_2dadv(methname,which_test,ncfilename,res,file_out,stat,conto
         fig = figure();
         
         ax1 = subplot(1,2,1);
-        nlvl = 1;%round(nt/2);
+        nlvl = round(nt/2);
         tmp = squeeze(out.data(nlvl,:,:));
         x = out.x; y = out.y;
         contourf(x,y,tmp,contours);
@@ -65,8 +65,8 @@ function out = plot_2dadv(methname,which_test,ncfilename,res,file_out,stat,conto
 
         nxny = [num2str(length(out.x)), 'x', num2str(length(out.y))];
         titlemeth = strrep(out.test,'_',' ');
-        ftitle = [out.method, ' ; ', titlemeth, ' ; ', 'N=',num2str(out.N), ' ; nx X ny=',nxny];
-        suptitle(ftitle);
+        ftitle = [out.method ' ; ' titlemeth, ' ; ' 'N=',num2str(out.N) ' ; nx X ny=' nxny];
+        %suptitle(ftitle);
         
         name = strcat(file_out, res{1},'.pdf');
         if(saveOutput)

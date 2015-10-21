@@ -24,7 +24,7 @@ tests = {'sine_adv', ... % 1 Uniform adv of sine^4
 res = {'1','2','3','4','5'};
 
 which_test = tests(2);
-which_res = res(3);
+which_res = res(2);
 ncfilename = strcat('dg2d_' ,which_test{1}, '.nc');
 
 contours = -.2:0.1:1.2;axis_lim = [-0.2 1.2];
@@ -33,26 +33,36 @@ contours = -.2:0.1:1.2;axis_lim = [-0.2 1.2];
 
 stat = 1;
 print_extrema = 1;
-
-for n=1:4
+whichMethods = [3 4 5 6];
+subDir = 'n4/';
+for nmethod=1:length(whichMethods)
+    n = whichMethods(nmethod);
     if(n==1) 
         methname = 'Nodal DG; No Limiting';
-        nc = ['ndgunlim/' ncfilename];
+        nc = ['_ndgunlim/' subDir ncfilename];
         file = ['figures/nodal/nod_' which_test{1}];
         [nodal_unlim] = plot_2dadv(methname,which_test,nc,which_res,file,stat,contours,axis_lim,print_extrema,0);
     elseif(n==2)
         methname = 'Nodal DG; Zhang and Shu Limiter';
-        nc = ['ndgzhshu/' ncfilename];
+        nc = ['_ndgzhshu/' subDir ncfilename];
         file = ['figures/zshu/zshu_' which_test{1}];
         [nodal_shu] = plot_2dadv(methname,which_test,nc,which_res,file,stat,contours,axis_lim,print_extrema,0);
     elseif(n==3)
         methname = 'Nodal DG; Split; No Limiting';
-        nc = ['ndgsplun/' ncfilename];
+        nc = ['_ndgsplun/' subDir ncfilename];
         nodal_split = plot_2dadv(methname,which_test,nc,which_res,file,stat,contours,axis_lim,print_extrema,0);
     elseif(n==4)
         methname = 'Nodal DG; Split; Z&S Limiting';
-        nc = ['ndgsplzs/' ncfilename];
+        nc = ['_ndgsplzs/' subDir ncfilename];
         nodal_splZS = plot_2dadv(methname,which_test,nc,which_res,file,stat,contours,axis_lim,print_extrema,0);
+    elseif(n==5)
+        methname = 'Nodal DG; Split; FCT + TMAR';
+        nc = ['_ndgsplfc/' subDir ncfilename];
+        nodal_splFC = plot_2dadv(methname,which_test,nc,which_res,file,stat,contours,axis_lim,print_extrema,0);
+    elseif(n==6)
+        methname = 'Nodal DG; Split; FCT + TMAR';
+        nc = ['_ndgspllm/' subDir ncfilename];
+        nodal_splLM = plot_2dadv(methname,which_test,nc,which_res,file,stat,contours,axis_lim,print_extrema,0);
 
     end
 end
