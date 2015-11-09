@@ -110,18 +110,6 @@ SUBROUTINE nDGsweep(A,nelem,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u0,lagDer
 
       ENDIF
 
-!        IF(dozshulimit) THEN
-        ! Compute element average via quadrature at next time level
-!            DO j=1,nelem
-!                elemAvg = 0.5D0*SUM(gllWeights(:)*Astar(j,:))
-!                IF(elemAvg .lt. 0d0) THEN
-!                write(*,'(A,I1)') 'WARNING-- ELEMENT MASS IS NEGATIVE AFTER STAGE',stage
-!                write(*,'(A,E10.4)') '  Minimum value = ', minval(Astar(j,:))
-!                    STOP
-!                ENDIF
-!            ENDDO !j
-!        ENDIF !dozshulimit
-
       IF(stopFlag) THEN
         write(*,*) '********* CRITICAL ERROR *********'
         write(*,*) 'S T O P P I N G...'
@@ -131,10 +119,10 @@ SUBROUTINE nDGsweep(A,nelem,dxel,nOrder,nQuadNodes,gllNodes,gllWeights,u0,lagDer
 
     ENDDO !stage
     IF(doPosLim) THEN
-      ! Adjust polynomial at end of time step for positive definiteness
+      ! Adjust polynomial at every node for positive definiteness at end of time step
       CALL computeAverages(elemAvg,AStar,gllWeights,nelem,nOrder,nQuadNodes)
       CALL limitNodePositivity(AStar,elemAvg,gllWeights,nelem,nOrder,nQuadNodes)
-    ENDIF !dofctlimit
+    ENDIF !doPosLim
     A = AStar
 
 END SUBROUTINE nDGsweep

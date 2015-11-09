@@ -23,16 +23,6 @@ CONTAINS
       DOUBLE PRECISION :: eps,theta,traceMin,massChg,weight,dCoeff
       DOUBLE PRECISION, DIMENSION(0:gqOrder) :: magicTmp
 
-      ! External function interface
-      INTERFACE
-        DOUBLE PRECISION FUNCTION massDiff(coeff,weight)
-          IMPLICIT NONE
-          ! Inputs
-          DOUBLE PRECISION, INTENT(IN) :: coeff,weight
-        END FUNCTION massDiff
-
-      END INTERFACE
-
       eps = epsilon(1D0)
       SELECT CASE(limitingMeth)
       CASE(2)
@@ -93,50 +83,52 @@ CONTAINS
           ENDDO !j
         ENDDO !i
       CASE(1,3)
-          DO j=1,ney
-            DO i=1,nex
-              ! Step 1: Initialize mean and minimum value
-              avg = elemAvgs(i,j)
-              valMin = HUGE(1D0)
+        DO j=1,ney
+          DO i=1,nex
+            ! Step 1: Initialize mean and minimum value
+            avg = elemAvgs(i,j)
+            valMin = HUGE(1D0)
 
-              ! Step 2: Compute minimum value between traces and "magic point"
-              DO beta=0,gqOrder
-                ! Look at left, right, top, and bottom trace values for this
-                ! Gauss quadrature point (indexed by beta)
-                leftTrace = SUM(coeffs(0,:,i,j)*lagGaussVal(:,beta))
-                rightTrace = SUM(coeffs(nOrder,:,i,j)*lagGaussVal(:,beta))
-                botTrace = SUM(coeffs(:,0,i,j)*lagGaussVal(:,beta))
-                topTrace = SUM(coeffs(:,nOrder,i,j)*lagGaussVal(:,beta))
-
-                ! Update minimum
-                valMin = MIN(valMin,leftTrace,rightTrace,botTrace,topTrace)
-
-                magicTmp(beta) = gqWeights(beta)*(mu1*(rightTrace+leftTrace)+mu2*(topTrace+botTrace))
-              ENDDO !beta
-              traceMin = valMin
-
-              ! Compute "magic point" value
-              magicPt = avg-0.25D0*zsMinWeight*SUM(magicTmp)
-              magicPt = magicPt/(1D0-zsMinWeight)
+            ! Step 2: Compute minimum value between traces and "magic point"
+            DO beta=0,gqOrder
+              ! Look at left, right, top, and bottom trace values for this
+              ! Gauss quadrature point (indexed by beta)
+              leftTrace = SUM(coeffs(0,:,i,j)*lagGaussVal(:,beta))
+              rightTrace = SUM(coeffs(nOrder,:,i,j)*lagGaussVal(:,beta))
+              botTrace = SUM(coeffs(:,0,i,j)*lagGaussVal(:,beta))
+              topTrace = SUM(coeffs(:,nOrder,i,j)*lagGaussVal(:,beta))
 
               ! Update minimum
-              !valMin = MIN(valMin,magicPt,MINVAL(coeffs(:,:,i,j)))
-              valMin = MIN(valMin,magicPt)
+              valMin = MIN(valMin,leftTrace,rightTrace,botTrace,topTrace)
 
-              !valMin = MINVAL(coeffs(:,:,i,j))
-              valMin = valMin - eps
+              magicTmp(beta) = gqWeights(beta)*(mu1*(rightTrace+leftTrace)+mu2*(topTrace+botTrace))
+            ENDDO !beta
+            traceMin = valMin
 
-              ! Step 3: Compute theta and rescale polynomial
-              theta = MIN(abs(avg)/(abs(valMin-avg)),1D0)
+            ! Compute "magic point" value
+            magicPt = avg-0.25D0*zsMinWeight*SUM(magicTmp)
+            magicPt = magicPt/(1D0-zsMinWeight)
 
-              IF(magicPt .lt. traceMin .AND. theta .lt. 1D0) THEN
-                magCount = magCount+1
-              ENDIF
+            ! Update minimum
+            !valMin = MIN(valMin,magicPt,MINVAL(coeffs(:,:,i,j)))
+            valMin = MIN(valMin,magicPt)
 
-              ! Rescale reconstructing polynomial for (i,j)th element
-              coeffs(:,:,i,j) = theta*(coeffs(:,:,i,j) - avg) + avg
-            ENDDO !i
-          ENDDO !j
+            !valMin = MINVAL(coeffs(:,:,i,j))
+            valMin = valMin - eps
+
+            ! Step 3: Compute theta and rescale polynomial
+            theta = MIN(abs(avg)/(abs(valMin-avg)),1D0)
+
+            IF(magicPt .lt. traceMin .AND. theta .lt. 1D0) THEN
+              magCount = magCount+1
+            ENDIF
+
+            ! Rescale reconstructing polynomial for (i,j)th element
+            coeffs(:,:,i,j) = theta*(coeffs(:,:,i,j) - avg) + avg
+          ENDDO !i
+        ENDDO !j
+      CASE DEFAULT
+        ! Do nothing
       END SELECT
 
   END SUBROUTINE limitMeanPositivity
@@ -159,7 +151,7 @@ CONTAINS
     eps = epsilon(1d0)
 
     SELECT CASE(limitingMeth)
-    CASE(2,3)
+    CASE(2:5)
       ! ================================================================================
       ! Use TMAR limiting at GLL nodes
       ! ================================================================================
@@ -201,10 +193,7 @@ CONTAINS
           ENDDO !i
         ENDDO !j
       CASE DEFAULT
-        write(*,*) '***** ERROR *****'
-        write(*,*) 'IN limitNodePositivity()... LIMITING METHOD INVALID'
-        write(*,*) 'Stopping...'
-        STOP
+        ! Do nothing
       END SELECT
   END SUBROUTINE limitNodePositivity
 

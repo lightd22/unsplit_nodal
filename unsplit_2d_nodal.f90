@@ -104,10 +104,10 @@ PROGRAM EXECUTE
         	write(*,*) 'TEST 7: Slotted cylinder deformation'
           transient = .TRUE.
         CASE(8)
-          write(*,*) 'TEST 8: Diagonal Adv. (u=v=1) of Gaussian Bump'
+          write(*,*) 'TEST 8: Constant Adv. of Gaussian Bump'
           transient = .FALSE.
         CASE(9)
-          write(*,*) 'TEST 9: Diagonal Adv. (u=v=1) of cosinebell'
+          write(*,*) 'TEST 9: Constant Adv. of cosinebell'
           transient = .FALSE.
       END SELECT
     	write(*,*) '======'
@@ -156,13 +156,15 @@ CONTAINS
 
 		nmethod_final = 4
 		tmp_method = 0
-    tmp_method(1) = 3
-		tmp_method(2) = 4
-    tmp_method(3) = 5
+    tmp_method(1) = 1
+		tmp_method(2) = 6
+    tmp_method(3) = 9
     tmp_method(4) = 8
     tmp_method(5) = 8
 
-    tmp_method(1) = 5
+    !tmp_method(1) = 5
+    !tmp_method(2) = 8
+
 
 		DO nmethod=1,nmethod_final
 			imethod = tmp_method(nmethod)
@@ -174,11 +176,11 @@ CONTAINS
       limitingMeth = -1
 
       write(*,*) ''
+      write(*,*) '*******'
 
 			SELECT CASE(imethod)
 				CASE(1)
 				  WRITE(*,*) '2D Nodal, Unsplit, No limiting'
-				  dozshulimit = .FALSE.
 				  norder = polyOrder
 				  nQuadNodes = norder !2*(norder+1)
           gqOrder = 1
@@ -188,7 +190,7 @@ CONTAINS
 				CASE(2)
 				  WRITE(*,*) '2D Nodal, Unsplit, Zhang and Shu Limiting'
 				  dozshulimit = .TRUE.
-          doPosLim = .FALSE.
+          doPosLim = .TRUE.
           limitingMeth = 1
 				  norder = polyOrder
           nQuadNodes = norder
@@ -196,31 +198,31 @@ CONTAINS
           nZSNodes = CEILING((polyOrder+3)/2D0 )-1
           !outdir = '_ndgzhshu/n5/pRefine/rescale/'
           write(outdir,'(A,I1,A)') '_ndgzhshu/n',norder,'/'
-          WRITE(*,'(A,I1,A)') '   NOTE: Using ',gqOrder+1,' points for gauss quadrature nodes'
-          WRITE(*,'(A,I1,A)') '   NOTE: Using ',nZSNodes+1,' GLL nodes for positivity rescaling.'
+          WRITE(*,'(A,I1,A)') ' Using ',gqOrder+1,' points for gauss quadrature nodes'
+
         CASE(3)
           write(*,*) '2D Nodal, Strang Split, No limiting'
           doStrangSplit = .TRUE.
-          WRITE(outdir,'(A,I1,A)') '_ndgsplun/n',norder,'/'
           norder = polyOrder
           nQuadNodes = norder
           gqOrder = 1
           nZSnodes = 1
           !outdir = '_ndgsplun/'
+          WRITE(outdir,'(A,I1,A)') '_ndgsplun/n',norder,'/'
         CASE(4)
           write(*,*) '2D Nodal, Strang Split, Zhang and Shu Limiting'
           dozshulimit = .TRUE.
           doStrangSplit = .TRUE.
           doPosLim = .TRUE.
           limitingMeth = 1
-          WRITE(outdir,'(A,I1,A)') '_ndgsplzs/n',norder,'/'
           nOrder = polyOrder
           nQuadNodes = nOrder
           gqOrder = 1
           nZSNodes = CEILING((polyOrder+3)/2D0 )-1
 !          nZSNodes = nQuadNodes
 !outdir = '_ndgsplzs/n5/pRefine/rescale/'
-          WRITE(*,'(A,I1,A)') '   NOTE: Using ',nZSNodes+1,' GLL nodes for positivity limiting.'
+          WRITE(outdir,'(A,I1,A)') '_ndgsplzs/n',norder,'/'
+
         CASE(5)
           WRITE(*,*) '2D Nodal, Strang Split, FCT + TMAR'
           doFluxMod = .TRUE.
@@ -233,7 +235,7 @@ CONTAINS
           nZSNodes = nQuadNodes
           !outdir = '_ndgsplfc/'
           write(outdir,'(A,I1,A)') '_ndgsplfc/n',norder,'/'
-          WRITE(*,'(A,I1,A)') '   NOTE: Using ',nZSNodes+1,' GLL nodes for positivity limiting.'
+          WRITE(*,'(A,I1,A)') ' Using ',nZSNodes+1,' GLL nodes for positivity limiting.'
         CASE(6)
           WRITE(*,*) '2D Nodal, Unsplit, MA Truncation'
           dozshulimit = .TRUE.
@@ -246,8 +248,8 @@ CONTAINS
           !write(outdir,'(A,I1,A)') '_matrunc/n',norder,'/meanLimitingComparison/tmarMin/'
           !write(outdir,'(A,I1,A)') '_matrunc/n',norder,'/meanLimitingComparison/tmarFull/'
           write(outdir,'(A,I1,A)') '_matrunc/n',nOrder,'/'
-          !WRITE(*,'(A,I1,A)') '   NOTE: Using ',gqOrder+1,' points for gauss quadrature nodes'
-          !WRITE(*,'(A,I1,A)') '   NOTE: Using ',nZSNodes+1,' GLL nodes for positivity rescaling.'
+          !WRITE(*,'(A,I1,A)') '     Using ',gqOrder+1,' points for gauss quadrature nodes'
+          !WRITE(*,'(A,I1,A)') '     Using ',nZSNodes+1,' GLL nodes for positivity rescaling.'
         CASE(7)
           WRITE(*,*) '2D Nodal, Unsplit, MA Truncation + mean limiting at ZSmin'
           dozshulimit = .TRUE.
@@ -259,8 +261,8 @@ CONTAINS
           nZSNodes = CEILING((polyOrder+3)/2D0 )-1
           !outdir =
           write(outdir,'(A,I1,A)') '_matrunc/n',norder,'/meanLimitingComparison/zsMin/'
-          WRITE(*,'(A,I1,A)') '   NOTE: Using ',gqOrder+1,' points for gauss quadrature nodes'
-          WRITE(*,'(A,I1,A)') '   NOTE: Using ',nZSNodes+1,' GLL nodes for positivity rescaling.'
+          WRITE(*,'(A,I1,A)') ' Using ',gqOrder+1,' points for gauss quadrature nodes'
+
         CASE(8)
           WRITE(*,*) '2D Nodal, Split, Lambda Limiting + TMAR each stage'
           doFluxMod = .TRUE.
@@ -273,19 +275,31 @@ CONTAINS
           nZSNodes = nQuadNodes
           !outdir = '_ndgspllm/'
           write(outdir,'(A,I1,A)') '_ndgspllm/n',norder,'/'
-          WRITE(*,'(A,I1,A)') '   NOTE: Using ',nZSNodes+1,' GLL nodes for positivity limiting.'
+
+        CASE(9)
+          WRITE(*,*) '2D Nodal, Unsplit, Lambda Limiting + TMAR each stage'
+          doFluxMod = .TRUE.
+          doPosLim = .TRUE.
+          limitingMeth = 5
+          nOrder = polyOrder
+          nQuadNodes = nOrder
+          gqOrder = 1
+          nZSNodes = nQuadNodes
+          write(outdir,'(A,I1,A)') '_ndguslam/n',norder,'/'
 			END SELECT
       IF(limitingMeth == -1) THEN
-        WRITE(*,*) '***No Limiting Active ***'
+        WRITE(*,*) 'No Limiting Active'
       ELSE
-        WRITE(*,*) 'limitingMeth = ',limitingMeth
+        WRITE(*,'(A,I1)') 'limitingMeth = ',limitingMeth
+        WRITE(*,'(A,I1,A)') 'Using ',nZSNodes+1,' GLL nodes for positivity limiting.'
       ENDIF
       WRITE(*,*) 'Output directory is: ',outdir
+      write(*,*) '*******'
 
 			! Initialize quadrature weights and nodes (only done once per call)
 			ALLOCATE(gllnodes(0:nQuadNodes),gllweights(0:nQuadNodes),gaussNodes(0:gqOrder),gaussWeights(0:gqOrder),&
-                    lagrangeDeriv(0:norder,0:nQuadNodes),tmpArray(0:norder,0:norder),nodeSpacing(0:nQuadNodes-1),&
-                    lagGaussVal(0:norder,0:gqOrder),lambda(0:nQuadNodes),STAT=ierr)
+                lagrangeDeriv(0:norder,0:nQuadNodes),tmpArray(0:norder,0:norder),nodeSpacing(0:nQuadNodes-1),&
+                lagGaussVal(0:norder,0:gqOrder),lambda(0:nQuadNodes),STAT=ierr)
 
       ALLOCATE(quadZSNodes(0:nZSNodes),quadZSWeights(0:nZSNodes),lagValsZS(0:norder,0:nZSNodes),STAT=ierr)
 
@@ -445,7 +459,6 @@ CONTAINS
 !        write(*,'(A,E10.4,A,E10.4,A,E10.4)') '  mu used = ',calculatedMu, &
 !                                     '  mu2 used = ',maxval(sqrt(u0**2 + v0**2))*dt/min(dxel,dyel), &
 !                                     '  mux + muy = ', mux+muy
-
         IF(doZSMaxCFL) THEN
           calculatedMu = mux+muy
         ELSE
@@ -494,28 +507,28 @@ CONTAINS
 
         ELSE
         ! Use coeff_update to update 2d elements
-				DO n=1,nstep
+		      DO n=1,nstep
 
 !                    A0 = A
-          CALL CPU_TIME(t1)
-          CALL coeff_update(A,u0,v0,gllNodes,gllWeights,gaussWeights,lagrangeDeriv,time,dt,dxel,dyel,nex,ney,&
-                            norder,nQuadNodes,gqOrder,lagGaussVal,nZSnodes,lagValsZS,&
-                            dozshulimit,transient,doZSMaxCFL)
-          CALL CPU_TIME(t2)
-!                       write(*,*) 'CHANGE IN A',maxval(abs(A-A0))
-    			time = time + dt
+            CALL CPU_TIME(t1)
+            CALL coeff_update(A,u0,v0,gllNodes,gllWeights,gaussWeights,lagrangeDeriv,time,dt,dxel,dyel,nex,ney,&
+                              norder,nQuadNodes,gqOrder,lagGaussVal,nZSnodes,lagValsZS,&
+                              dozshulimit,transient,doZSMaxCFL)
+            CALL CPU_TIME(t2)
+  !                       write(*,*) 'CHANGE IN A',maxval(abs(A-A0))
+      			time = time + dt
 
-    			IF((MOD(n,nstep/nout).eq.0).OR.(n.eq.nstep)) THEN
-    				! Write output
-    				CALL output2d(A,xplot,yplot,gllWeights,gllNodes,nex,ney,norder,nQuadNodes,&
-                          nxiplot,netaplot,time,calculatedMu,cdf_out,p,2)
-    			ENDIF
+      			IF((MOD(n,nstep/nout).eq.0).OR.(n.eq.nstep)) THEN
+      				! Write output
+      				CALL output2d(A,xplot,yplot,gllWeights,gllNodes,nex,ney,norder,nQuadNodes,&
+                            nxiplot,netaplot,time,calculatedMu,cdf_out,p,2)
+      			ENDIF
 
-          ! Track solution max and min throughout integration
-    			tmp_qmax = MAX(tmp_qmax,MAXVAL(A))
-    			tmp_qmin = MIN(tmp_qmin,MINVAL(A))
+            ! Track solution max and min throughout integration
+      			tmp_qmax = MAX(tmp_qmax,MAXVAL(A))
+      			tmp_qmin = MIN(tmp_qmin,MINVAL(A))
 
-    		ENDDO !n
+      		ENDDO !n
         ENDIF ! doStrangSplit
         CALL CPU_TIME(tf)
         tf = tf - t0
@@ -742,9 +755,14 @@ CONTAINS
             DO k=0,norder
               psiu(k,:,1,i,j) = (yQuad(:,j) + dymin/2d0) - xQuad(k,i)
               psiu(k,:,0,i,j) = (yQuad(:,j) - dymin/2d0) - xQuad(k,i)
+!              psiu(k,:,1,i,j) = 0D0
+!              psiu(k,:,0,i,j) = 0D0
 
               psiv(k,:,1,i,j) = yQuad(:,j) - (xQuad(k,i) + dxmin/2d0)
               psiv(k,:,0,i,j) = yQuad(:,j) - (xQuad(k,i) - dxmin/2d0)
+!              psiv(k,:,1,i,j) = 0D0
+!              psiv(k,:,0,i,j) = 0D0
+
             ENDDO !k
           ENDDO !j
         ENDDO !i

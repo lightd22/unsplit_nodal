@@ -22,13 +22,15 @@ cPROCESSOR := $(shell uname -m)
 SOURCES= nDGmod.f90 \
 				 coeff_update.f90 \
 				 nDGsweep.f90 \
-				 positivityLimit.f90 \
-				 computeAverages.f90 \
 
 MODULES= testParameters.f90 \
          splitFunctions.f90 \
 				 splitEvalFlux.f90 \
-				 splitPositivityLimit.f90
+				 splitPositivityLimit.f90 \
+				 unspFunctions.f90 \
+				 unspPositivityLimit.f90 \
+				 unspEvalFlux.f90 \
+				
 OBJECTS=$(SOURCES:.f90=.o)
 MODOBJ=$(MODULES:.f90=.o)
 

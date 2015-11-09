@@ -46,6 +46,7 @@ CONTAINS
       CASE DEFAULT
         RETURN
     END SELECT ! limiting meth
+    ! Conservatively adjust interior nodes
     CALL conservPolyMod(coeffs,edgeVals,qWeights,nelem,nNodes,nQuadNodes)
 
     ! Update quadurature and edge values using modified polynomial coefficients
@@ -192,6 +193,7 @@ CONTAINS
     DOUBLE PRECISION, DIMENSION(1:nelem,0:nQuadNodes) :: tempQuad
 
     eps = 1D-10
+
     DO j=1,nelem
       ! Net flux out of Sj
       Pj = MAX(0D0,flx(j))-MIN(0D0,flx(j-1))+eps
@@ -199,22 +201,19 @@ CONTAINS
       ! Compute left lambda and modify left edge if necessary
       lam = lambda(uIn(0,j),dt,dx)
       alpha = ABS(flx(j-1))/Pj
-      beta = 0.5D0*(ABS(SIGN(1D0,uIn(0,j)))-SIGN(1D0,uIn(0,j)))
-      coeffs(0,j) = (1D0-beta)*coeffs(0,j)+beta*MIN(coeffs(0,j),alpha*elemAvg(j)/lam)
-
-  !    IF(uIn(0,j) .lt. 0D0) THEN
-  !      coeffs(0,j) = MIN(coeffs(0,j),alpha*elemAvg(j)/lam)
-  !    ENDIF
+!      beta = 0.5D0*(ABS(SIGN(1D0,uIn(0,j)))-SIGN(1D0,uIn(0,j)))
+!      coeffs(0,j) = (1D0-beta)*coeffs(0,j)+beta*MIN(coeffs(0,j),alpha*elemAvg(j)/lam)
+      IF(uIn(0,j) .lt. 0D0) THEN
+        coeffs(0,j) = MIN(coeffs(0,j),alpha*elemAvg(j)/lam)
+      ENDIF
 
       lam = lambda(uIn(nQuadNodes,j),dt,dx)
       alpha = ABS(flx(j))/Pj
-      beta = 0.5D0*(SIGN(1D0,uIn(nQuadNodes,j))+ABS(SIGN(1D0,uIn(nQuadNodes,j))))
-      coeffs(nNodes,j) = (1D0-beta)*coeffs(nNodes,j)+beta*MIN(coeffs(nNodes,j),alpha*elemAvg(j)/lam)
-
-  !    IF(uIn(nNodes,j) .gt. 0D0) THEN
-  !      coeffs(nNodes,j) = MIN(coeffs(nNodes,j),alpha*elemAvg(j)/lam)
-  !    ENDIF
-
+!      beta = 0.5D0*(SIGN(1D0,uIn(nQuadNodes,j))+ABS(SIGN(1D0,uIn(nQuadNodes,j))))
+!      coeffs(nNodes,j) = (1D0-beta)*coeffs(nNodes,j)+beta*MIN(coeffs(nNodes,j),alpha*elemAvg(j)/lam)
+      IF(uIn(nNodes,j) .gt. 0D0) THEN
+        coeffs(nNodes,j) = MIN(coeffs(nNodes,j),alpha*elemAvg(j)/lam)
+      ENDIF
     ENDDO !j
 
     ! Update fluxes to reflect modified polynomial values
