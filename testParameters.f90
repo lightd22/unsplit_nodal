@@ -6,7 +6,7 @@ MODULE testParameters
   IMPLICIT NONE
   INTEGER :: limitingMeth,magCount
   DOUBLE PRECISION :: mu1,mu2,zsMinWeight
-  LOGICAL :: doFluxMod,doPosLim
+  LOGICAL :: doFluxMod,doPosLim,eachStageNodeLim
   SAVE
 
 END MODULE testParameters

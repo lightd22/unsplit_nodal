@@ -60,12 +60,6 @@ CONTAINS
 !    call cpu_time(t2)
 !    limTime=t2-t1
 
-!    ! Conservatively adjust interior nodes
-!    call cpu_time(t1)
-!    CALL conservPolyMod(coeffs,edgeValsNS,edgeValsEW,qWeights,nex,ney,N,nQuad)
-!    call cpu_time(t2)
-!    consTime = t2-t1
-
 !    call cpu_time(t1)
     ! Update quadurature and edge values using modified polynomial coefficients
     CALL evalExpansion(quadVals,edgeValsNS,edgeValsEW,coeffs,nQuad,n,nex,ney)
@@ -314,10 +308,6 @@ CONTAINS
     ! Local Variables
     INTEGER :: i,j,k
     DOUBLE PRECISION :: eps,Pij,alpha,avg,lam,dc,dM
-!    DOUBLE PRECISION, DIMENSION(0:nQuad,0:nQuad,1:nex,1:ney) :: quadVals
-!    DOUBLE PRECISION, DIMENSION(0:1,0:nQuad,0:nex+1,1:ney) :: edgeValsEW
-!    DOUBLE PRECISION, DIMENSION(0:1,0:nQuad,1:nex,0:ney+1) :: edgeValsNS
-
 
     eps = 1D-10
     ! Corner nodes are examined twice (once for horizontal fluxes and again for vertical fluxes)
@@ -413,24 +403,26 @@ CONTAINS
     ! Local Variables
     INTEGER :: i,j,k
     DOUBLE PRECISION :: eps,Pij,fluxRatio,avg,lam,dc,dM
-    DOUBLE PRECISION, DIMENSION(0:1,0:nQuad,0:nex+1,1:ney) :: edgeValsEW
-    DOUBLE PRECISION, DIMENSION(0:1,0:nQuad,1:nex,0:ney+1) :: edgeValsNS
-    DOUBLE PRECISION, DIMENSION(0:nQuad,0:nQuad,1:nex,1:ney) :: quadVals
 
     eps = 1D-10
 
     DO j=1,ney
       DO i=1,nex
-        avg = elemAvg(i,j)
+!        avg = elemAvg(i,j)
         dM = 0D0
         DO k=0,nQuad
           ! Horizontal slice adjustment
+          avg = 0.5D0*SUM(qWeights(:)*coeffs(:,k,i,j))
           Pij = eps+MAX(0D0,Fhat(k,i,j))-MIN(0D0,Fhat(k,i-1,j))
           IF(u(0,k,i,j) .lt. 0D0) THEN
             dc = coeffs(0,k,i,j)
             !fluxRatio = ABS(Fhat(k,i-1,j))/Pij
             fluxRatio = MAX(0D0,-1D0*Fhat(k,i-1,j))/Pij
-            call coeffAdjust(coeffs(0,k,i,j),u(0,k,i,j),avg,fluxRatio,dt,dx)
+
+            lam = lambda(u(0,k,i,j),dt,dx)
+            coeffs(0,k,i,j) = min(coeffs(0,k,i,j),fluxRatio*avg/lam)
+!            call coeffAdjust(coeffs(0,k,i,j),u(0,k,i,j),avg,fluxRatio,dt,dx)
+
             dc = dc - coeffs(0,k,i,j)
             dM = dM+dc*qWeights(k)
           ENDIF
@@ -439,18 +431,27 @@ CONTAINS
             dc = coeffs(nQuad,k,i,j)
             !fluxRatio = ABS(Fhat(k,i,j))/Pij
             fluxRatio = MAX(0D0,Fhat(k,i,j))/Pij
-            call coeffAdjust(coeffs(nQuad,k,i,j),u(nQuad,k,i,j),avg,fluxRatio,dt,dx)
+
+            lam = lambda(u(nQuad,k,i,j),dt,dx)
+            coeffs(nQuad,k,i,j) = min(coeffs(nQuad,k,i,j),fluxRatio*avg/lam)
+!            call coeffAdjust(coeffs(nQuad,k,i,j),u(nQuad,k,i,j),avg,fluxRatio,dt,dx)
+
             dc = dc - coeffs(nQuad,k,i,j)
             dM = dM+dc*qWeights(k)
           ENDIF
 
           ! Vertical slice adjustment
+          avg = 0.5D0*SUM(qWeights(:)*coeffs(k,:,i,j))
           Pij = eps+MAX(0D0,Ghat(k,i,j))-MIN(0D0,Ghat(k,i,j-1))
           IF(v(k,0,i,j) .lt. 0D0) THEN
             dc = coeffs(k,0,i,j)
             !fluxRatio = ABS(Ghat(k,i,j-1))/Pij
             fluxRatio = MAX(0D0,-1D0*Ghat(k,i,j-1))/Pij
-            call coeffAdjust(coeffs(k,0,i,j),v(k,0,i,j),avg,fluxRatio,dt,dy)
+
+            lam = lambda(v(k,0,i,j),dt,dy)
+            coeffs(k,0,i,j) = min(coeffs(k,0,i,j),fluxRatio*avg/lam)
+!            call coeffAdjust(coeffs(k,0,i,j),v(k,0,i,j),avg,fluxRatio,dt,dy)
+
             dc = dc - coeffs(k,0,i,j)
             dM = dM+dc*qWeights(k)
           ENDIF
@@ -459,7 +460,11 @@ CONTAINS
             dc = coeffs(k,nQuad,i,j)
             !fluxRatio = ABS(Ghat(k,i,j))/Pij
             fluxRatio = MAX(0D0,Ghat(k,i,j))/Pij
-            call coeffAdjust(coeffs(k,nQuad,i,j),v(k,nQuad,i,j),avg,fluxRatio,dt,dy)
+
+            lam = lambda(v(k,nQuad,i,j),dt,dy)
+            coeffs(k,nQuad,i,j) = min(coeffs(k,nQuad,i,j),fluxRatio*avg/lam)
+!            call coeffAdjust(coeffs(k,nQuad,i,j),v(k,nQuad,i,j),avg,fluxRatio,dt,dy)
+
             dc = dc - coeffs(k,nQuad,i,j)
             dM = dM+dc*qWeights(k)
           ENDIF

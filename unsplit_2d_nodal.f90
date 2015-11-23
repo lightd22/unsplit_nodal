@@ -38,8 +38,8 @@ PROGRAM EXECUTE
 
 !          muMAX = 0.13D0 ! modal CFL max
         CASE(4)
-         muMAX = 0.168D0
-!         muMAX = 0.083D0
+!         muMAX = 0.168D0
+         muMAX = 0.083D0
 !         muMAX  = 0.050D0
 
 !        muMAX = 0.089D0 ! modal CFL max
@@ -154,9 +154,9 @@ CONTAINS
 
 		if(nlevel.lt.1) STOP 'nlev should be at least 1 in test2d_modal'
 
-		nmethod_final = 3
+		nmethod_final = 1
 		tmp_method = 0
-    tmp_method(1) = 1
+    tmp_method(1) = 10
     !tmp_method(1) = 2
 		tmp_method(2) = 9
     tmp_method(3) = 10
@@ -171,6 +171,7 @@ CONTAINS
       doStrangSplit = .FALSE.
       doFluxMod = .FALSE.
       doPosLim = .FALSE.
+      eachStageNodeLim = .FALSE.
       limitingMeth = -1
 
       write(*,*) ''
@@ -277,6 +278,7 @@ CONTAINS
           WRITE(*,*) '2D Nodal, Unsplit, Lambda Limiting + TMAR each stage'
           doFluxMod = .TRUE.
           doPosLim = .TRUE.
+          eachStageNodeLim = .TRUE.
           limitingMeth = 5
           nOrder = polyOrder
           nQuadNodes = nOrder
@@ -288,6 +290,7 @@ CONTAINS
           WRITE(*,*) '2D Nodal, Unsplit, sliced Lambda Limiting + TMAR'
           doFluxMod = .TRUE.
           doPosLim = .TRUE.
+          eachStageNodeLim = .TRUE.
           limitingMeth = 6
           nOrder = polyOrder
           nQuadNodes = nOrder
