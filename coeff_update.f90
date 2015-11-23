@@ -42,7 +42,7 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gqWeights,lagrangeDeriv,time
   DOUBLE PRECISION, DIMENSION(1:nex,1:ney) :: elemAvg
   LOGICAL :: stopFlag = .FALSE.
 
-	REAL(KIND=4) :: t0,tf,t1
+!	REAL :: totTime,fluxTime,fwdTime,limTime,t0,t1,t2
 
 	! ######################
 	! Time step using Strong-Stability Preserving RK3
@@ -52,6 +52,11 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gqWeights,lagrangeDeriv,time
   v = v0
 
   A1 = A
+
+!  fluxTime = 0.0
+!  fwdTime = 0.0
+!  limTime = 0.0
+!  CALL cpu_time(t0)
 
   IF(doPosLim) THEN
     CALL computeAverages(elemAvg,gllWeights,A1,nex,ney,nOrder,nQuadNodes)
@@ -79,9 +84,13 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gqWeights,lagrangeDeriv,time
     ENDIF
 
     ! Update fluxes
+!    CALL cpu_time(t1)
     CALL evalFluxes(Fhat,Ghat,A1,quadVals,elemAvg,u,v,gllWeights,nex,ney,nOrder,nQuadNodes,dt,dxel,dyel)
+!    CALL cpu_time(t2)
+!    fluxTime = fluxTime+(t2-t1)
 
     ! Forward step of SSPRK3
+!    CALL cpu_time(t1)
   	DO j=1,ney
     	DO i=1,nex
         currElemQuad = quadVals(:,:,i,j)
@@ -96,6 +105,8 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gqWeights,lagrangeDeriv,time
         ENDDO!l
       ENDDO !i
     ENDDO!j
+!    CALL cpu_time(t2)
+!    fwdTime = fwdTime+(t2-t1)
 
 		SELECT CASE(stage)
 		CASE(1)
@@ -106,11 +117,12 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gqWeights,lagrangeDeriv,time
 			A1 = A/3d0 + 2D0*A2/3D0
 		END SELECT
 
+!    CALL cpu_time(t1)
     IF(doPosLim .and. stage < 3) THEN
       ! Check element averages
       CALL computeAverages(elemAvg,gllWeights,A1,nex,ney,nOrder,nQuadNodes)
       IF(MINVAL(elemAvg) .lt. 0d0) THEN
-        write(*,*) 'WARNING-- ELEMENT MEAN IS NEGATIVE BEFORE FWD STEP',stage
+        write(*,*) 'WARNING-- ELEMENT MEAN IS NEGATIVE AFTER FWD STEP',stage
         write(*,*) minval(elemAvg)
         stopFlag = .TRUE.
       ENDIF
@@ -119,11 +131,13 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gqWeights,lagrangeDeriv,time
         CALL limitMeanPositivity(A1,elemAvg,lagGaussVal,gqWeights,gllWeights,&
                                 nex,ney,nOrder,gqOrder)
       ENDIF
-      IF(limitingMeth == 5) THEN
+      IF(limitingMeth .ge. 5) THEN
         CALL limitNodePositivity(A1,elemAvg,gllWeights,nex,ney,nOrder)
       ENDIF
 
     ENDIF
+!    CALL cpu_time(t2)
+!    limTime = limTime+(t2-t1)
 
     IF(stopFlag) THEN
       write(*,*) '********* CRITICAL ERROR *********'
@@ -135,6 +149,7 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gqWeights,lagrangeDeriv,time
     ENDDO !stage
     A = A1
 
+!    CALL cpu_time(t1)
     IF(doPosLim) THEN
       ! Compute element average via quadrature at next time level
       CALL computeAverages(elemAvg,gllWeights,A,nex,ney,nOrder,nQuadNodes)
@@ -144,6 +159,15 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gqWeights,lagrangeDeriv,time
         !STOP
       ENDIF
       CALL limitNodePositivity(A,elemAvg,gllWeights,nex,ney,nOrder)
-    ENDIF !dozshulimit
+    ENDIF !doposlim
+!    CALL cpu_time(t2)
+!    totTime = t2-t0
+!    limTime = limTime+(t2-t1)
 
+!    write(*,*) 'Flux Time=',fluxTime/totTime
+!    write(*,*) 'Fwd Time=',fwdTime/totTime
+!    write(*,*) 'Lim Time=',limTime/totTime
+!    write(*,*) 'Total Time=',totTime
+!    write(*,*) '***'
+!    write(*,*) ''
 END SUBROUTINE coeff_update

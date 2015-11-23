@@ -38,8 +38,8 @@ PROGRAM EXECUTE
 
 !          muMAX = 0.13D0 ! modal CFL max
         CASE(4)
-!         muMAX = 0.168D0
-         muMAX = 0.083D0
+         muMAX = 0.168D0
+!         muMAX = 0.083D0
 !         muMAX  = 0.050D0
 
 !        muMAX = 0.089D0 ! modal CFL max
@@ -66,8 +66,8 @@ PROGRAM EXECUTE
       muMAX = 0.707D0
 !      muMAX = 1.0D0
     ENDIF ! doZSMaxCFL
-    muMAX = muMAX*0.9!*.707
-
+!    muMAX = muMAX*0.9*.707
+     muMAX = muMAX*0.9
     testEnd = 1
     ALLOCATE(testsVec(1:testEnd),STAT=ierr)
     testsVec = (/ 5 /)
@@ -154,17 +154,15 @@ CONTAINS
 
 		if(nlevel.lt.1) STOP 'nlev should be at least 1 in test2d_modal'
 
-		nmethod_final = 4
+		nmethod_final = 3
 		tmp_method = 0
     tmp_method(1) = 1
-		tmp_method(2) = 6
-    tmp_method(3) = 9
-    tmp_method(4) = 8
-    tmp_method(5) = 8
-
-    !tmp_method(1) = 5
-    !tmp_method(2) = 8
-
+    !tmp_method(1) = 2
+		tmp_method(2) = 9
+    tmp_method(3) = 10
+    tmp_method(4) = 3
+    tmp_method(5) = 5
+    tmp_method(6) = 8
 
 		DO nmethod=1,nmethod_final
 			imethod = tmp_method(nmethod)
@@ -235,9 +233,8 @@ CONTAINS
           nZSNodes = nQuadNodes
           !outdir = '_ndgsplfc/'
           write(outdir,'(A,I1,A)') '_ndgsplfc/n',norder,'/'
-          WRITE(*,'(A,I1,A)') ' Using ',nZSNodes+1,' GLL nodes for positivity limiting.'
         CASE(6)
-          WRITE(*,*) '2D Nodal, Unsplit, MA Truncation'
+          WRITE(*,*) '2D Nodal, Unsplit, MA Truncation (using ZS thm)'
           dozshulimit = .TRUE.
           doPosLim = .TRUE.
           limitingMeth = 2
@@ -286,6 +283,18 @@ CONTAINS
           gqOrder = 1
           nZSNodes = nQuadNodes
           write(outdir,'(A,I1,A)') '_ndguslam/n',norder,'/'
+
+        CASE(10)
+          WRITE(*,*) '2D Nodal, Unsplit, sliced Lambda Limiting + TMAR'
+          doFluxMod = .TRUE.
+          doPosLim = .TRUE.
+          limitingMeth = 6
+          nOrder = polyOrder
+          nQuadNodes = nOrder
+          gqOrder = 1
+          nZSNodes = nQuadNodes
+          write(outdir,'(A,I1,A)') '_ndguslam/n',norder,'/'
+
 			END SELECT
       IF(limitingMeth == -1) THEN
         WRITE(*,*) 'No Limiting Active'
@@ -464,7 +473,6 @@ CONTAINS
         ELSE
           calculatedMu = maxval(sqrt(u0**2 + v0**2))*dt/min(dxel,dyel)
         ENDIF
-
 				IF(p .eq. 1) THEN ! Set up netCDF file
           write(*,*) 'Maximum velocity: |u| = ',maxval(abs(u0)),maxval(abs(v0))!maxval(abs(sqrt(u0**2+v0**2)))
 					CALL output2d(A0,xplot,yplot,gllWeights,gllNodes,nex,ney,norder,nQuadNodes,nxiplot,netaplot,&
@@ -508,14 +516,11 @@ CONTAINS
         ELSE
         ! Use coeff_update to update 2d elements
 		      DO n=1,nstep
-
-!                    A0 = A
             CALL CPU_TIME(t1)
             CALL coeff_update(A,u0,v0,gllNodes,gllWeights,gaussWeights,lagrangeDeriv,time,dt,dxel,dyel,nex,ney,&
                               norder,nQuadNodes,gqOrder,lagGaussVal,nZSnodes,lagValsZS,&
                               dozshulimit,transient,doZSMaxCFL)
             CALL CPU_TIME(t2)
-  !                       write(*,*) 'CHANGE IN A',maxval(abs(A-A0))
       			time = time + dt
 
       			IF((MOD(n,nstep/nout).eq.0).OR.(n.eq.nstep)) THEN

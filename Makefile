@@ -2,7 +2,7 @@ cPROCESSOR := $(shell uname -m)
 
 #ifeq ($(PROCESSOR),ia64)
   F90=gfortran
-  FFLAGS=-g -C -O2 -ffree-form -I/opt/local/include -fbounds-check -ffpe-trap=invalid,overflow,zero #-fcheck=all
+  FFLAGS=-g -C -ffree-form -I/opt/local/include -fbounds-check -ffpe-trap=invalid,overflow,zero
   FFLAGS2=$(FFLAGS)
   LDFLAGS=-L/opt/local/lib -lnetcdf -lnetcdff -framework vecLib
 
@@ -30,7 +30,7 @@ MODULES= testParameters.f90 \
 				 unspFunctions.f90 \
 				 unspPositivityLimit.f90 \
 				 unspEvalFlux.f90 \
-				
+
 OBJECTS=$(SOURCES:.f90=.o)
 MODOBJ=$(MODULES:.f90=.o)
 
