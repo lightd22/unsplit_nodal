@@ -156,8 +156,7 @@ CONTAINS
 
 		nmethod_final = 1
 		tmp_method = 0
-    tmp_method(1) = 10
-    !tmp_method(1) = 2
+    tmp_method(1) = 2
 		tmp_method(2) = 9
     tmp_method(3) = 10
     tmp_method(4) = 3
@@ -302,8 +301,8 @@ CONTAINS
       IF(limitingMeth == -1) THEN
         WRITE(*,*) 'No Limiting Active'
       ELSE
-        WRITE(*,'(A,I1)') 'limitingMeth = ',limitingMeth
-        WRITE(*,'(A,I1,A)') 'Using ',nZSNodes+1,' GLL nodes for positivity limiting.'
+        WRITE(*,'(A,I1)') ' limitingMeth = ',limitingMeth
+        WRITE(*,'(A,I1,A)') ' Using ',nZSNodes+1,' GLL nodes for positivity limiting.'
       ENDIF
       WRITE(*,*) 'Output directory is: ',outdir
       write(*,*) '*******'

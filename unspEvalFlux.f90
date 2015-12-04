@@ -408,20 +408,17 @@ CONTAINS
 
     DO j=1,ney
       DO i=1,nex
-!        avg = elemAvg(i,j)
+        avg = elemAvg(i,j)
         dM = 0D0
         DO k=0,nQuad
           ! Horizontal slice adjustment
-          avg = 0.5D0*SUM(qWeights(:)*coeffs(:,k,i,j))
+!          avg = 0.5D0*SUM(qWeights(:)*coeffs(:,k,i,j))
           Pij = eps+MAX(0D0,Fhat(k,i,j))-MIN(0D0,Fhat(k,i-1,j))
           IF(u(0,k,i,j) .lt. 0D0) THEN
             dc = coeffs(0,k,i,j)
-            !fluxRatio = ABS(Fhat(k,i-1,j))/Pij
-            fluxRatio = MAX(0D0,-1D0*Fhat(k,i-1,j))/Pij
 
-            lam = lambda(u(0,k,i,j),dt,dx)
-            coeffs(0,k,i,j) = min(coeffs(0,k,i,j),fluxRatio*avg/lam)
-!            call coeffAdjust(coeffs(0,k,i,j),u(0,k,i,j),avg,fluxRatio,dt,dx)
+            fluxRatio = MAX(0D0,-1D0*Fhat(k,i-1,j))/Pij
+            call coeffAdjust(coeffs(0,k,i,j),u(0,k,i,j),avg,fluxRatio,dt,dx)
 
             dc = dc - coeffs(0,k,i,j)
             dM = dM+dc*qWeights(k)
@@ -429,28 +426,22 @@ CONTAINS
 
           IF(u(nQuad,k,i,j) .gt. 0D0) THEN
             dc = coeffs(nQuad,k,i,j)
-            !fluxRatio = ABS(Fhat(k,i,j))/Pij
-            fluxRatio = MAX(0D0,Fhat(k,i,j))/Pij
 
-            lam = lambda(u(nQuad,k,i,j),dt,dx)
-            coeffs(nQuad,k,i,j) = min(coeffs(nQuad,k,i,j),fluxRatio*avg/lam)
-!            call coeffAdjust(coeffs(nQuad,k,i,j),u(nQuad,k,i,j),avg,fluxRatio,dt,dx)
+            fluxRatio = MAX(0D0,Fhat(k,i,j))/Pij
+            call coeffAdjust(coeffs(nQuad,k,i,j),u(nQuad,k,i,j),avg,fluxRatio,dt,dx)
 
             dc = dc - coeffs(nQuad,k,i,j)
             dM = dM+dc*qWeights(k)
           ENDIF
 
           ! Vertical slice adjustment
-          avg = 0.5D0*SUM(qWeights(:)*coeffs(k,:,i,j))
+!          avg = 0.5D0*SUM(qWeights(:)*coeffs(k,:,i,j))
           Pij = eps+MAX(0D0,Ghat(k,i,j))-MIN(0D0,Ghat(k,i,j-1))
           IF(v(k,0,i,j) .lt. 0D0) THEN
             dc = coeffs(k,0,i,j)
-            !fluxRatio = ABS(Ghat(k,i,j-1))/Pij
-            fluxRatio = MAX(0D0,-1D0*Ghat(k,i,j-1))/Pij
 
-            lam = lambda(v(k,0,i,j),dt,dy)
-            coeffs(k,0,i,j) = min(coeffs(k,0,i,j),fluxRatio*avg/lam)
-!            call coeffAdjust(coeffs(k,0,i,j),v(k,0,i,j),avg,fluxRatio,dt,dy)
+            fluxRatio = MAX(0D0,-1D0*Ghat(k,i,j-1))/Pij
+            call coeffAdjust(coeffs(k,0,i,j),v(k,0,i,j),avg,fluxRatio,dt,dy)
 
             dc = dc - coeffs(k,0,i,j)
             dM = dM+dc*qWeights(k)
@@ -458,12 +449,9 @@ CONTAINS
 
           IF(v(k,nQuad,i,j) .gt. 0D0) THEN
             dc = coeffs(k,nQuad,i,j)
-            !fluxRatio = ABS(Ghat(k,i,j))/Pij
-            fluxRatio = MAX(0D0,Ghat(k,i,j))/Pij
 
-            lam = lambda(v(k,nQuad,i,j),dt,dy)
-            coeffs(k,nQuad,i,j) = min(coeffs(k,nQuad,i,j),fluxRatio*avg/lam)
-!            call coeffAdjust(coeffs(k,nQuad,i,j),v(k,nQuad,i,j),avg,fluxRatio,dt,dy)
+            fluxRatio = MAX(0D0,Ghat(k,i,j))/Pij
+            call coeffAdjust(coeffs(k,nQuad,i,j),v(k,nQuad,i,j),avg,fluxRatio,dt,dy)
 
             dc = dc - coeffs(k,nQuad,i,j)
             dM = dM+dc*qWeights(k)

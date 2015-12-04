@@ -108,6 +108,7 @@ SUBROUTINE coeff_update(A,u0,v0,gllNodes,gllWeights,gqWeights,lagrangeDeriv,time
 			A1 = A/3d0 + 2D0*A2/3D0
 		END SELECT
 
+    ! Do nodal limiting each stage for methods which require it (ZS methods and lambda limiting)
     IF(doPosLim .and. stage < 3) THEN
       ! Check element averages
       CALL computeAverages(elemAvg,gllWeights,A1,nex,ney,nOrder,nQuadNodes)
