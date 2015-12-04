@@ -154,14 +154,14 @@ CONTAINS
 
 		if(nlevel.lt.1) STOP 'nlev should be at least 1 in test2d_modal'
 
-		nmethod_final = 1
+		nmethod_final = 6
 		tmp_method = 0
-    tmp_method(1) = 2
-		tmp_method(2) = 9
-    tmp_method(3) = 10
-    tmp_method(4) = 3
-    tmp_method(5) = 5
-    tmp_method(6) = 8
+    tmp_method(1) = 1
+		tmp_method(2) = 2
+    tmp_method(3) = 4
+    tmp_method(4) = 5
+    tmp_method(5) = 10
+    tmp_method(6) = 11
 
 		DO nmethod=1,nmethod_final
 			imethod = tmp_method(nmethod)
@@ -296,6 +296,18 @@ CONTAINS
           gqOrder = 1
           nZSNodes = nQuadNodes
           write(outdir,'(A,I1,A)') '_ndguslam/n',norder,'/'
+
+        CASE(11)
+          WRITE(*,*) '2D Nodal, Unsplit, FCT + TMAR'
+          doFluxMod = .TRUE.
+          doPosLim = .TRUE.
+          eachStageNodeLim = .FALSE.
+          limitingMeth = 4
+          nOrder = polyOrder
+          nQuadNodes = nOrder
+          gqOrder = 1
+          nZSNodes = nQuadNodes
+          write(outdir,'(A,I1,A)') '_ndgusfct/n',norder,'/'
 
 			END SELECT
       IF(limitingMeth == -1) THEN

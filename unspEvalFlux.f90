@@ -42,12 +42,8 @@ CONTAINS
 !    call cpu_time(t1)
     SELECT CASE(limitingMeth)
       CASE(4)
-        ! Modified FCT
-        WRITE(*,*) 'WARNING -- This is not fully functional yet!'
-        WRITE(*,*) 'Corner nodes are currently being modified twice (for F and G fluxes)'
-        WRITE(*,*) 'CURRENT FORMULATION DOES *NOT* GIVE UNIQUE SOLUTION'
-        CALL fctPolyMod(coeffs,Fhat,Ghat,elemAvg,u,v,dxel,dyel,dt,nex,ney,N,nQuad)
-        STOP
+        ! FCT
+        CALL fctMod(coeffs,Fhat,Ghat,elemAvg,u,v,dxel,dyel,dt,nex,ney,N,nQuad,qWeights)
       CASE(5)
         ! Lambda modification
         CALL lambdaLimiting(coeffs,Fhat,Ghat,elemAvg,u,v,qWeights,dxel,dyel,dt,nex,ney,N,nQuad)
@@ -60,14 +56,15 @@ CONTAINS
 !    call cpu_time(t2)
 !    limTime=t2-t1
 
-!    call cpu_time(t1)
-    ! Update quadurature and edge values using modified polynomial coefficients
-    CALL evalExpansion(quadVals,edgeValsNS,edgeValsEW,coeffs,nQuad,n,nex,ney)
-    ! Update fluxes to reflect modified polynomial values
-    CALL numFlux(Fhat,Ghat,u,v,edgeValsNS,edgeValsEW,nQuad,N,nex,ney)
-!    call cpu_time(tf)
-
-!    evalTime = evalTime + (tf-t1)
+    IF(limitingMeth .ne. 4) THEN
+  !    call cpu_time(t1)
+      ! Update quadurature and edge values using modified polynomial coefficients
+      CALL evalExpansion(quadVals,edgeValsNS,edgeValsEW,coeffs,nQuad,N,nex,ney)
+      ! Update fluxes to reflect modified polynomial values
+      CALL numFlux(Fhat,Ghat,u,v,edgeValsNS,edgeValsEW,nQuad,N,nex,ney)
+  !    call cpu_time(tf)
+  !    evalTime = evalTime + (tf-t1)
+    ENDIF
 !    tf = tf - t0
 !    write(*,*) '==='
 !    write(*,*) 'IN FLUXES'
@@ -77,16 +74,16 @@ CONTAINS
 !    write(*,*) '==='
   END SUBROUTINE evalFluxes
 
-  SUBROUTINE fctPolyMod(coeffs,Fhat,Ghat,elemAvg,u,v,dx,dy,dt,nex,ney,N,nQuad)
-    ! Makes FCT-based correction to fluxes to ensure that element means remain non-negative
-    ! Then modifies local polynomials so that FCT fluxes will be consistent
-    ! NOTE:: THIS IS NOT CONSERVATIVE! Requires calling conservPolyMod() after to keep conservation
+  SUBROUTINE fctMod(coeffs,Fhat,Ghat,elemAvg,u,v,dx,dy,dt,nex,ney,N,nQuad,qWeights)
+    ! Applies Flux Corrected Transport (FCT) modification to fluxes to ensure that element
+    ! means remain non-negative.
     IMPLICIT NONE
     ! Inputs
     INTEGER, INTENT(IN) :: nex,ney,N,nQuad
     DOUBLE PRECISION, INTENT(IN) :: dx,dy,dt
     DOUBLE PRECISION, DIMENSION(1:nex,1:ney), INTENT(IN) :: elemAvg
     DOUBLE PRECISION, DIMENSION(0:nQuad,0:nQuad,1:nex,1:ney), INTENT(IN) :: u,v
+    DOUBLE PRECISION, DIMENSION(0:nQuad), INTENT(IN) :: qWeights
 
     ! Outputs
     DOUBLE PRECISION, DIMENSION(0:N,0:N,1:nex,1:ney), INTENT(INOUT) :: coeffs
@@ -100,32 +97,31 @@ CONTAINS
 
     eps = 1D-10
 
-    DO i=1,nex
-      DO j=1,ney
+    DO j=1,ney
+      DO i=1,nex
         mean = elemAvg(i,j)
-        Qij = mean*dx*dy/dt
+        Qij = mean*dx*dy/dt ! Maximum permissible net flux out of (i,j)
         ! Compute net flux out of element (i,j)
-        Pij = eps + netFluxOut(i,j,Fhat,Ghat,nex,ney,nQuad)
+!        Pij = eps + netFluxOut(i,j,Fhat,Ghat,nex,ney,nQuad)
+        Pij = eps
+        DO k=0,N
+          Pij = Pij + qWeights(k)*dy*(max(0D0,Fhat(k,i,j))-min(0D0,Fhat(k,i-1,j)))
+          Pij = Pij + qWeights(k)*dx*(max(0D0,Ghat(k,i,j))-min(0D0,Ghat(k,i,j-1)))
+        ENDDO !N
+        Pij = 0.5D0*Pij
         fluxRatio(i,j) = MIN(1D0,Qij/Pij)
-      ENDDO !j
-    ENDDO !i
+      ENDDO !i
+    ENDDO !j
 
+    ! Periodically extend flux ratios to ghost cells
     fluxRatio(0,:) = fluxRatio(nex,:)
     fluxRatio(nex+1,:) = fluxRatio(1,:)
     fluxRatio(:,0) = fluxRatio(:,ney)
     fluxRatio(:,ney+1) = fluxRatio(:,1)
 
-    ! TODO: This section should modify coefficients so that numerical flux is consistent with
-    ! the newly modified polynomials. However, it is currently adjusting the four corner nodes
-    ! (which have BOTH a F and G flux) TWICE.
-    ! Not only is this overkill in terms of modification, it means that both fluxes aren't
-    ! truly consistent with the modified polynomial.
-    ! Instead, this may need to adjust both fluxes with the **same** modification factor
-    ! and then fix the polynomial so that it is consistent
-
     ! Adjust horizontal fluxes
-    DO i=0,nex
-      DO j=1,ney
+    DO j=1,ney
+      DO i=0,nex
         DO k=0,N
           IF(Fhat(k,i,j) .ge. 0D0) THEN
             Fhat(k,i,j) = fluxRatio(i,j)*Fhat(k,i,j)
@@ -133,41 +129,12 @@ CONTAINS
             Fhat(k,i,j) = fluxRatio(i+1,j)*Fhat(k,i,j)
           ENDIF
         ENDDO !k
-      ENDDO !j
-    ENDDO !i
-
-    ! Multiplicatively adjust upstream DG approximating polynomials so that new fluxes are consistent
-    ! Look at inflow boundary on left side (i=0)
-    DO j=1,ney
-      DO k=0,N
-        IF(u(0,k,1,j) .gt. 0D0) THEN
-          coeffs(N,k,nex,j) = Fhat(k,i,j)/u(0,k,1,j)
-        ELSE IF(u(0,k,1,j) .lt. 0D0) THEN
-          coeffs(0,k,1,j) = Fhat(k,i,j)/u(0,k,1,j)
-        ELSE
-          ! Do nothing
-        ENDIF
-      ENDDO !k
+      ENDDO !i
     ENDDO !j
 
-    ! Look at right edge of remaining elements
-    DO i=1,nex
-      DO j=1,ney
-        DO k=0,N
-          IF(u(N,k,i,j) .gt. 0D0) THEN
-            coeffs(N,k,i,j) = Fhat(k,i,j)/u(N,k,i,j)
-          ELSE IF(u(N,k,i,j) .lt. 0D0) THEN
-            coeffs(0,k,i+1,j) = Fhat(k,i,j)/u(N,k,i,j)
-          ELSE
-            ! Do nothing
-          ENDIF
-        ENDDO !k
-      ENDDO !j
-    ENDDO !i
-
     ! Adjust vertical fluxes
-    DO i=1,nex
-      DO j=0,ney
+    DO j=0,ney
+      DO i=1,nex
         DO k=0,N
           IF(Ghat(k,i,j) .ge. 0D0) THEN
             Ghat(k,i,j) = fluxRatio(i,j)*Ghat(k,i,j)
@@ -175,39 +142,10 @@ CONTAINS
             Ghat(k,i,j) = fluxRatio(i,j+1)*Ghat(k,i,j)
           ENDIF
         ENDDO !k
-      ENDDO !j
-    ENDDO !i
-
-    ! Multiplicatively adjust upstream DG approximating polynomials so that new fluxes are consistent
-    ! Look at inflow boundary on bottom side (j=0)
-    DO i=1,nex
-      DO k=0,N
-        IF(v(k,0,i,1) .gt. 0D0) THEN
-          coeffs(k,N,i,ney) = Ghat(k,i,j)/v(k,0,i,1)
-        ELSE IF(v(k,0,i,1) .lt. 0D0) THEN
-          coeffs(k,0,i,1) = Ghat(k,i,j)/v(k,0,i,1)
-        ELSE
-          ! Do nothing if v=0
-        ENDIF
-      ENDDO !k
+      ENDDO !i
     ENDDO !j
 
-    ! Look at top edge of remaining elements
-    DO i=1,nex
-      DO j=1,ney
-        DO k=0,N
-          IF(v(k,N,i,j) .gt. 0D0) THEN
-            coeffs(k,N,i,j) = Ghat(k,i,j)/v(k,N,i,j)
-          ELSE IF(v(k,N,i,j) .lt. 0D0) THEN
-            coeffs(k,0,i,j+1) = Ghat(k,i,j)/v(k,N,i,j)
-          ELSE
-            ! Do nothing
-          ENDIF
-        ENDDO !k
-      ENDDO !j
-    ENDDO !i
-
-  END SUBROUTINE fctPolyMod
+  END SUBROUTINE fctMod
 
   SUBROUTINE conservPolyMod(coeffs,edgeValsNS,edgeValsEW,qWeights,nex,ney,N,nQuad)
     ! Makes additive conservative modification to internal (1:nNodes-1) coefficients
