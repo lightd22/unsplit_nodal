@@ -154,10 +154,10 @@ CONTAINS
 
 		if(nlevel.lt.1) STOP 'nlev should be at least 1 in test2d_modal'
 
-		nmethod_final = 6
+		nmethod_final = 2
 		tmp_method = 0
-    tmp_method(1) = 1
-		tmp_method(2) = 2
+    tmp_method(1) = 11
+		tmp_method(2) = 12
     tmp_method(3) = 4
     tmp_method(4) = 5
     tmp_method(5) = 10
@@ -185,6 +185,7 @@ CONTAINS
           nZSnodes = 1
           !outdir = '_ndgunlim/'
           write(outdir,'(A,I1,A)') '_ndgunlim/n',norder,'/'
+
 				CASE(2)
 				  WRITE(*,*) '2D Nodal, Unsplit, Zhang and Shu Limiting'
 				  dozshulimit = .TRUE.
@@ -207,6 +208,7 @@ CONTAINS
           nZSnodes = 1
           !outdir = '_ndgsplun/'
           WRITE(outdir,'(A,I1,A)') '_ndgsplun/n',norder,'/'
+
         CASE(4)
           write(*,*) '2D Nodal, Strang Split, Zhang and Shu Limiting'
           dozshulimit = .TRUE.
@@ -233,6 +235,7 @@ CONTAINS
           nZSNodes = nQuadNodes
           !outdir = '_ndgsplfc/'
           write(outdir,'(A,I1,A)') '_ndgsplfc/n',norder,'/'
+
         CASE(6)
           WRITE(*,*) '2D Nodal, Unsplit, MA Truncation (using ZS thm)'
           dozshulimit = .TRUE.
@@ -247,6 +250,7 @@ CONTAINS
           write(outdir,'(A,I1,A)') '_matrunc/n',nOrder,'/'
           !WRITE(*,'(A,I1,A)') '     Using ',gqOrder+1,' points for gauss quadrature nodes'
           !WRITE(*,'(A,I1,A)') '     Using ',nZSNodes+1,' GLL nodes for positivity rescaling.'
+
         CASE(7)
           WRITE(*,*) '2D Nodal, Unsplit, MA Truncation + mean limiting at ZSmin'
           dozshulimit = .TRUE.
@@ -309,6 +313,18 @@ CONTAINS
           nZSNodes = nQuadNodes
           write(outdir,'(A,I1,A)') '_ndgusfct/n',norder,'/'
 
+        CASE(12)
+          WRITE(*,*) '2D Nodal, Unsplit, FCT + ZS'
+          doFluxMod = .TRUE.
+          doPosLim = .TRUE.
+          eachStageNodeLim = .FALSE.
+          limitingMeth = 1
+          nOrder = polyOrder
+          nQuadNodes = nOrder
+          gqOrder = 1
+          nZSNodes = nQuadNodes
+          write(outdir,'(A,I1,A)') '_ndgusfzs/n',norder,'/'
+
 			END SELECT
       IF(limitingMeth == -1) THEN
         WRITE(*,*) 'No Limiting Active'
@@ -362,8 +378,8 @@ CONTAINS
       DO i=0,norder
         DO j=0,nZSNodes
           lagValsZS(i,j) = lagrange(quadZSNodes(j),i,nQuadNodes,gllNodes,lambda)
-        ENDDO!l
-      ENDDO!k
+        ENDDO!j
+      ENDDO!i
 
       xEdge(1) = 0D0
       xEdge(2) = 1D0
@@ -612,9 +628,9 @@ CONTAINS
 				ENDIF
 				DEALLOCATE(A,A0,x_elcent,y_elcent,xplot,yplot,u0,v0,tmpErr,xQuad,yQuad,C,C0,STAT=ierr)
 			ENDDO
-        		DEALLOCATE(gllnodes,gllweights,gaussnodes,gaussweights,lagrangeDeriv,nodeSpacing,lagGaussVal,lambda, &
-                       xiplot,etaplot,tmpArray, tmpErr, STAT=ierr)
-            DEALLOCATE(quadZSNodes,quadZSWeights,lagValsZS,STAT=ierr)
+  		DEALLOCATE(gllnodes,gllweights,gaussnodes,gaussweights,lagrangeDeriv,nodeSpacing,lagGaussVal,lambda, &
+                 xiplot,etaplot,tmpArray, tmpErr, STAT=ierr)
+      DEALLOCATE(quadZSNodes,quadZSWeights,lagValsZS,STAT=ierr)
 
 		ENDDO
 

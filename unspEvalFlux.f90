@@ -26,52 +26,39 @@ CONTAINS
     INTEGER :: i,j,k
     DOUBLE PRECISION, DIMENSION(0:1,0:nQuad,0:nex+1,1:ney) :: edgeValsEW
     DOUBLE PRECISION, DIMENSION(0:1,0:nQuad,1:nex,0:ney+1) :: edgeValsNS
-!    real :: t0,t1,t2,tf,limTime,evalTime
 
     ! Get edge and quadrature values then compute unmodified fluxes
-!    call cpu_time(t0)
     CALL evalExpansion(quadVals,edgeValsNS,edgeValsEW,coeffs,nQuad,N,nex,ney)
     CALL numFlux(Fhat,Ghat,u,v,edgeValsNS,edgeValsEW,nQuad,N,nex,ney)
-!    call cpu_time(t2)
-!    evalTime = t2-t0
 
     IF(.NOT. doFluxMod) THEN
       RETURN
     ENDIF
 
-!    call cpu_time(t1)
     SELECT CASE(limitingMeth)
-      CASE(4)
-        ! FCT
+      CASE(1,4)
+      ! FCT
         CALL fctMod(coeffs,Fhat,Ghat,elemAvg,u,v,dxel,dyel,dt,nex,ney,N,nQuad,qWeights)
       CASE(5)
         ! Lambda modification
         CALL lambdaLimiting(coeffs,Fhat,Ghat,elemAvg,u,v,qWeights,dxel,dyel,dt,nex,ney,N,nQuad)
+        ! Update quadurature and edge values using modified polynomial coefficients
+        CALL evalExpansion(quadVals,edgeValsNS,edgeValsEW,coeffs,nQuad,N,nex,ney)
+        ! Update fluxes to reflect modified polynomial values
+        CALL numFlux(Fhat,Ghat,u,v,edgeValsNS,edgeValsEW,nQuad,N,nex,ney)
+
       CASE(6)
         ! Sliced Lambda modification
         CALL splitLambdaMod(coeffs,Fhat,Ghat,elemAvg,u,v,qWeights,dxel,dyel,dt,nex,ney,N,nQuad)
+        ! Update quadurature and edge values using modified polynomial coefficients
+        CALL evalExpansion(quadVals,edgeValsNS,edgeValsEW,coeffs,nQuad,N,nex,ney)
+        ! Update fluxes to reflect modified polynomial values
+        CALL numFlux(Fhat,Ghat,u,v,edgeValsNS,edgeValsEW,nQuad,N,nex,ney)
+
       CASE DEFAULT
         RETURN
     END SELECT
-!    call cpu_time(t2)
-!    limTime=t2-t1
 
-    IF(limitingMeth .ne. 4) THEN
-  !    call cpu_time(t1)
-      ! Update quadurature and edge values using modified polynomial coefficients
-      CALL evalExpansion(quadVals,edgeValsNS,edgeValsEW,coeffs,nQuad,N,nex,ney)
-      ! Update fluxes to reflect modified polynomial values
-      CALL numFlux(Fhat,Ghat,u,v,edgeValsNS,edgeValsEW,nQuad,N,nex,ney)
-  !    call cpu_time(tf)
-  !    evalTime = evalTime + (tf-t1)
-    ENDIF
-!    tf = tf - t0
-!    write(*,*) '==='
-!    write(*,*) 'IN FLUXES'
-!    write(*,*) 'limTime=',limTime/tf
-!    write(*,*) 'evalTime=',evalTime/tf
-!    write(*,*) 'totTime=',tf
-!    write(*,*) '==='
   END SUBROUTINE evalFluxes
 
   SUBROUTINE fctMod(coeffs,Fhat,Ghat,elemAvg,u,v,dx,dy,dt,nex,ney,N,nQuad,qWeights)
@@ -92,23 +79,39 @@ CONTAINS
 
     ! Local variables
     INTEGER :: i,j,k,m
+    DOUBLE PRECISION, DIMENSION(0:nex,1:ney) :: Fbar
+    DOUBLE PRECISION, DIMENSION(1:nex,0:ney) :: Gbar
     DOUBLE PRECISION :: Qij,Pij,eps,mean
     DOUBLE PRECISION, DIMENSION(0:nex+1,0:ney+1) :: fluxRatio
 
     eps = 1D-10
 
+    ! Get horizontal mean fluxes through east/west interfaces
+    DO j=1,ney
+      DO i=0,nex
+        Fbar(i,j) = 0.5D0*sum(qweights(:)*Fhat(:,i,j))
+      ENDDO !i
+    ENDDO !j
+
+    ! Get vertical mean fluxes through north/south interfaces
+    DO j=0,ney
+      DO i=1,nex
+        Gbar(i,j) = 0.5D0*sum(qweights(:)*Ghat(:,i,j))
+      ENDDO !i
+    ENDDO !j
+
     DO j=1,ney
       DO i=1,nex
         mean = elemAvg(i,j)
-        Qij = mean*dx*dy/dt ! Maximum permissible net flux out of (i,j)
-        ! Compute net flux out of element (i,j)
+        Qij = mean*dx*dy/dt ! Maximum permissible net flux out of S(i,j)
+        ! Compute actual net flux out of element S(i,j)
 !        Pij = eps + netFluxOut(i,j,Fhat,Ghat,nex,ney,nQuad)
-        Pij = eps
-        DO k=0,N
-          Pij = Pij + qWeights(k)*dy*(max(0D0,Fhat(k,i,j))-min(0D0,Fhat(k,i-1,j)))
-          Pij = Pij + qWeights(k)*dx*(max(0D0,Ghat(k,i,j))-min(0D0,Ghat(k,i,j-1)))
-        ENDDO !N
-        Pij = 0.5D0*Pij
+        Pij = eps + meanNFO(i,j,Fbar,Gbar,dx,dy,nex,ney)
+!        DO k=0,N
+!          Pij = Pij + qWeights(k)*dy*(max(0D0,Fhat(k,i,j))-min(0D0,Fhat(k,i-1,j)))
+!          Pij = Pij + qWeights(k)*dx*(max(0D0,Ghat(k,i,j))-min(0D0,Ghat(k,i,j-1)))
+!        ENDDO !N
+!        Pij = 0.5D0*Pij
         fluxRatio(i,j) = MIN(1D0,Qij/Pij)
       ENDDO !i
     ENDDO !j
@@ -122,26 +125,22 @@ CONTAINS
     ! Adjust horizontal fluxes
     DO j=1,ney
       DO i=0,nex
-        DO k=0,N
-          IF(Fhat(k,i,j) .ge. 0D0) THEN
-            Fhat(k,i,j) = fluxRatio(i,j)*Fhat(k,i,j)
-          ELSE
-            Fhat(k,i,j) = fluxRatio(i+1,j)*Fhat(k,i,j)
-          ENDIF
-        ENDDO !k
+        IF(Fbar(i,j) .ge. 0D0) THEN
+          Fhat(:,i,j) = fluxRatio(i,j)*Fhat(:,i,j)
+        ELSE
+          Fhat(:,i,j) = fluxRatio(i+1,j)*Fhat(:,i,j)
+        ENDIF
       ENDDO !i
     ENDDO !j
 
     ! Adjust vertical fluxes
     DO j=0,ney
       DO i=1,nex
-        DO k=0,N
-          IF(Ghat(k,i,j) .ge. 0D0) THEN
-            Ghat(k,i,j) = fluxRatio(i,j)*Ghat(k,i,j)
-          ELSE
-            Ghat(k,i,j) = fluxRatio(i,j+1)*Ghat(k,i,j)
-          ENDIF
-        ENDDO !k
+        IF(Gbar(i,j) .ge. 0D0) THEN
+          Ghat(:,i,j) = fluxRatio(i,j)*Ghat(:,i,j)
+        ELSE
+          Ghat(:,i,j) = fluxRatio(i,j+1)*Ghat(:,i,j)
+        ENDIF
       ENDDO !i
     ENDDO !j
 
@@ -448,5 +447,23 @@ CONTAINS
       netFluxOut = netFluxOut + MAX(Ghat(k,i,j),0D0) - MIN(Ghat(k,i,j-1),0D0)
     ENDDO !k
   END FUNCTION netFluxOut
+
+  DOUBLE PRECISION FUNCTION meanNFO(i,j,Fbar,Gbar,dx,dy,nex,ney)
+    !
+    ! Computes the net AVERAGE flux out of cell (i,j)
+    !
+    IMPLICIT NONE
+    ! Inputs
+    INTEGER, INTENT(IN) :: i,j,nex,ney
+    DOUBLE PRECISION, INTENT(IN) :: dx,dy
+    DOUBLE PRECISION, DIMENSION(0:nex,1:ney), INTENT(IN) :: Fbar
+    DOUBLE PRECISION, DIMENSION(1:nex,0:ney), INTENT(IN) :: Gbar
+    ! Outputs
+    ! Local Variables
+    DOUBLE PRECISION :: meanEW,meanNS
+    meanEW = dy*(max(0D0,Fbar(i,j))-min(0D0,Fbar(i-1,j))) ! net average flux through east/west interfaces
+    meanNS = dx*(max(0D0,Gbar(i,j))-min(0D0,Gbar(i,j-1))) ! net average flux through north/south interfaces
+    meanNFO = meanEW + meanNS
+  END FUNCTION meanNFO
 
 END MODULE unspEvalFlux
